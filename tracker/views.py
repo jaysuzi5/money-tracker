@@ -934,11 +934,25 @@ def report_categories(request):
     income_total = sum((n['total'] for n in income), Decimal('0'))
     spending_total = sum((n['total'] for n in spending), Decimal('0'))
 
+    def decorate(nodes):
+        for n in nodes:
+            n['total_abs'] = abs(n['total'])
+        return nodes
+
+    def section(name, slug, nodes, total):
+        nodes = sorted(decorate(nodes), key=lambda n: n['total_abs'], reverse=True)
+        return {'name': name, 'slug': slug, 'nodes': nodes,
+                'total': total, 'total_abs': abs(total) or Decimal('1')}
+
+    sections = [
+        section('Income', 'i', income, income_total),
+        section('Expenses', 'e', spending, spending_total),
+    ]
+
     return render(request, 'tracker/report_categories.html', {
-        'income': income, 'spending': spending,
-        'income_total': income_total, 'spending_total': spending_total,
+        'sections': sections,
         'net_total': income_total + spending_total,
-        'level': level, 'preset': preset, 'start': start or '', 'end': end or '',
+        'preset': preset, 'start': start or '', 'end': end or '',
         'all_roots': Category.objects.filter(parent__isnull=True).order_by('name'),
         'selected': selected,
     })

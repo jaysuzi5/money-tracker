@@ -2,67 +2,110 @@
 {% load humanize %}
 {% block title %}Category report{% endblock %}
 {% block content %}
-<div class="mt-page-header"><h1>Category report</h1><a href="{% url 'tracker:reports' %}" class="btn btn-light"><i class="bi bi-arrow-left"></i> Reports</a></div>
-
-<div class="card mb-3">
-  <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-auto">
-        <label class="form-label">Range</label>
-        <select name="range" class="form-select form-select-sm">
-          <option value="all" {% if preset == 'all' %}selected{% endif %}>All dates</option>
-          <option value="ytd" {% if preset == 'ytd' %}selected{% endif %}>Year to date</option>
-          <option value="12m" {% if preset == '12m' %}selected{% endif %}>Last 12 months</option>
-          <option value="3m" {% if preset == '3m' %}selected{% endif %}>Last 3 months</option>
-        </select>
-      </div>
-      <div class="col-auto"><label class="form-label">From</label><input type="date" name="start" value="{{ start }}" class="form-control form-control-sm"></div>
-      <div class="col-auto"><label class="form-label">To</label><input type="date" name="end" value="{{ end }}" class="form-control form-control-sm"></div>
-      <div class="col-auto">
-        <label class="form-label">Detail</label>
-        <select name="level" class="form-select form-select-sm">
-          <option value="top" {% if level == 'top' %}selected{% endif %}>Categories only</option>
-          <option value="sub" {% if level == 'sub' %}selected{% endif %}>Categories + subcategories</option>
-        </select>
-      </div>
-      <div class="col-auto">
-        <label class="form-label">Limit to</label>
-        <select name="cats" class="form-select form-select-sm tsearch" multiple style="min-width:220px">
-          {% for r in all_roots %}<option value="{{ r.id }}" {% if r.id|stringformat:'s' in selected %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-auto"><button class="btn btn-sm btn-primary">Apply</button> <a href="?" class="btn btn-sm btn-light">Reset</a></div>
-    </form>
-  </div>
+<div class="mt-page-header">
+  <h1>Category report</h1>
+  <a href="{% url 'tracker:reports' %}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i> Reports</a>
 </div>
 
-<div class="row g-4">
-  <div class="col-lg-6">
-    <div class="card table-card">
-      <div class="card-header d-flex justify-content-between"><span><i class="bi bi-arrow-down-circle text-success me-1"></i> Income</span><span class="num">${{ income_total|floatformat:2|intcomma }}</span></div>
-      <table class="table">
-        <tbody>
-        {% for n in income %}
-          <tr><td><a href="{% url 'tracker:category_summary' n.cat.id %}" class="fw-semibold">{{ n.cat.name }}</a></td><td class="text-end num">${{ n.total|floatformat:2|intcomma }}</td></tr>
-          {% for c in n.children %}<tr><td class="ps-4 small">{{ c.cat.name }}</td><td class="text-end num small">${{ c.total|floatformat:2|intcomma }}</td></tr>{% endfor %}
-        {% empty %}<tr><td class="empty-state" colspan="2">No income categories.</td></tr>{% endfor %}
-        </tbody>
-      </table>
+<div class="rpt-toolbar">
+  <form method="get" class="d-flex flex-wrap align-items-end gap-2 m-0">
+    <div>
+      <label class="rpt-lbl">Range</label>
+      <select name="range" class="form-select form-select-sm">
+        <option value="all" {% if preset == 'all' %}selected{% endif %}>All dates</option>
+        <option value="ytd" {% if preset == 'ytd' %}selected{% endif %}>Year to date</option>
+        <option value="12m" {% if preset == '12m' %}selected{% endif %}>Last 12 months</option>
+        <option value="3m" {% if preset == '3m' %}selected{% endif %}>Last 3 months</option>
+      </select>
     </div>
-  </div>
-  <div class="col-lg-6">
-    <div class="card table-card">
-      <div class="card-header d-flex justify-content-between"><span><i class="bi bi-arrow-up-circle text-danger me-1"></i> Spending</span><span class="num">${{ spending_total|floatformat:2|intcomma }}</span></div>
-      <table class="table">
-        <tbody>
-        {% for n in spending %}
-          <tr><td><a href="{% url 'tracker:category_summary' n.cat.id %}" class="fw-semibold">{{ n.cat.name }}</a></td><td class="text-end num {% if n.total < 0 %}amount-neg{% endif %}">${{ n.total|floatformat:2|intcomma }}</td></tr>
-          {% for c in n.children %}<tr><td class="ps-4 small">{{ c.cat.name }}</td><td class="text-end num small {% if c.total < 0 %}amount-neg{% endif %}">${{ c.total|floatformat:2|intcomma }}</td></tr>{% endfor %}
-        {% empty %}<tr><td class="empty-state" colspan="2">No spending categories.</td></tr>{% endfor %}
-        </tbody>
-      </table>
+    <div><label class="rpt-lbl">From</label><input type="date" name="start" value="{{ start }}" class="form-control form-control-sm"></div>
+    <div><label class="rpt-lbl">To</label><input type="date" name="end" value="{{ end }}" class="form-control form-control-sm"></div>
+    <div>
+      <label class="rpt-lbl">Limit to</label>
+      <select name="cats" class="form-select form-select-sm tsearch" multiple style="min-width:200px">
+        {% for r in all_roots %}<option value="{{ r.id }}" {% if r.id|stringformat:'s' in selected %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+      </select>
     </div>
+    <input type="hidden" name="level" value="sub">
+    <button class="btn btn-sm btn-primary">Apply</button>
+    <a href="?" class="btn btn-sm btn-light">Reset</a>
+    <span class="ms-auto d-flex gap-1">
+      <button type="button" id="rpt-expand" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrows-expand"></i> Expand all</button>
+      <button type="button" id="rpt-collapse" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrows-collapse"></i> Collapse all</button>
+    </span>
+  </form>
+</div>
+
+<div class="rpt">
+  {% for sec in sections %}
+    <div class="rpt-section">
+      <div class="rpt-sec-head" data-sec="sec{{ forloop.counter }}">
+        <span class="rpt-sec-name"><i class="bi bi-caret-down-fill rpt-caret"></i> {{ sec.name }}</span>
+        <span class="rpt-sec-total num {% if sec.total < 0 %}neg{% else %}pos{% endif %}">${{ sec.total|floatformat:2|intcomma }}</span>
+      </div>
+      <div class="rpt-sec-body" id="sec{{ forloop.counter }}">
+        {% for n in sec.nodes %}
+          <div class="rpt-cat {% if n.children %}has-kids{% endif %}" {% if n.children %}data-kids="k{{ sec.slug }}{{ forloop.counter }}"{% endif %}>
+            <span class="rpt-cat-name">
+              {% if n.children %}<i class="bi bi-caret-right-fill rpt-caret-kids"></i>{% else %}<span class="rpt-spacer"></span>{% endif %}
+              <a href="{% url 'tracker:category_summary' n.cat.id %}">{{ n.cat.name }}</a>
+            </span>
+            <span class="rpt-bar-wrap">
+              {% if sec.total %}<span class="rpt-bar" style="width: {% widthratio n.total_abs sec.total_abs 100 %}%"></span>{% endif %}
+            </span>
+            <span class="rpt-cat-total num {% if n.total < 0 %}neg{% else %}pos{% endif %}">${{ n.total|floatformat:2|intcomma }}</span>
+          </div>
+          {% if n.children %}
+            <div class="rpt-kids" id="k{{ sec.slug }}{{ forloop.counter }}" style="display:none">
+              {% for c in n.children %}
+                <div class="rpt-sub">
+                  <span class="rpt-sub-name"><a href="{% url 'tracker:category_summary' c.cat.id %}">{{ c.cat.name }}</a></span>
+                  <span class="rpt-sub-total num {% if c.total < 0 %}neg{% else %}pos{% endif %}">${{ c.total|floatformat:2|intcomma }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% empty %}
+          <div class="rpt-empty">No categories.</div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+
+  <div class="rpt-net">
+    <span>Net</span>
+    <span class="num {% if net_total < 0 %}neg{% else %}pos{% endif %}">${{ net_total|floatformat:2|intcomma }}</span>
   </div>
 </div>
-<div class="card mt-3"><div class="card-body d-flex justify-content-between"><strong>Net (income + spending)</strong><strong class="num {% if net_total < 0 %}amount-neg{% else %}amount-pos{% endif %}">${{ net_total|floatformat:2|intcomma }}</strong></div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // section collapse
+  document.querySelectorAll('.rpt-sec-head').forEach(h => h.addEventListener('click', () => {
+    const b = document.getElementById(h.dataset.sec);
+    const open = b.style.display !== 'none';
+    b.style.display = open ? 'none' : '';
+    h.querySelector('.rpt-caret').classList.toggle('bi-caret-down-fill', !open);
+    h.querySelector('.rpt-caret').classList.toggle('bi-caret-right-fill', open);
+  }));
+  // per-category subcategory toggle
+  document.querySelectorAll('.rpt-cat.has-kids').forEach(c => c.addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    const k = document.getElementById(c.dataset.kids);
+    if (!k) return;
+    const open = k.style.display !== 'none';
+    k.style.display = open ? 'none' : '';
+    c.querySelector('.rpt-caret-kids').classList.toggle('bi-caret-down-fill', !open);
+    c.querySelector('.rpt-caret-kids').classList.toggle('bi-caret-right-fill', open);
+  }));
+  document.getElementById('rpt-expand').onclick = () => {
+    document.querySelectorAll('.rpt-kids').forEach(k => k.style.display = '');
+    document.querySelectorAll('.rpt-caret-kids').forEach(c => { c.classList.add('bi-caret-down-fill'); c.classList.remove('bi-caret-right-fill'); });
+  };
+  document.getElementById('rpt-collapse').onclick = () => {
+    document.querySelectorAll('.rpt-kids').forEach(k => k.style.display = 'none');
+    document.querySelectorAll('.rpt-caret-kids').forEach(c => { c.classList.remove('bi-caret-down-fill'); c.classList.add('bi-caret-right-fill'); });
+  };
+</script>
 {% endblock %}
