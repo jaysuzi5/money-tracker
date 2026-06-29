@@ -153,7 +153,25 @@ def dashboard(request):
         if sort in SORT_KEYS:
             txns.sort(key=SORT_KEYS[sort], reverse=(direction == 'desc'))
 
-        if account.manual_balance:
+        if account.type == AccountType.CREDIT_CARD:
+            cleared = account.transactions.filter(
+                status__in=[TxnStatus.CLEARED, TxnStatus.RECONCILED]
+            ).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+            credits = account.transactions.filter(
+                status=TxnStatus.UNCLEARED, amount__gt=0).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+            charges = account.transactions.filter(
+                status=TxnStatus.UNCLEARED, amount__lt=0).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+            online_owed = -account.online_balance  # owed-positive, to compare with balance
+            recon = {
+                'kind': 'cc',
+                'cleared': cleared,
+                'credits': credits,
+                'charges': charges,
+                'balance': account.current_balance,
+                'online': online_owed,
+                'difference': online_owed - account.current_balance,
+            }
+        elif account.manual_balance:
             recon = {
                 'manual': True,
                 'online': account.online_balance,

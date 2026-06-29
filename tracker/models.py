@@ -254,14 +254,22 @@ class TransactionSplit(models.Model):
 
 
 def recompute_balance(account):
-    """available (current_balance) = online − pending(uncleared, signed) − set-aside.
-    Recompute whenever transactions, buckets, or the online figure change.
+    """Balance reflects ALL entered transactions, cleared or not.
+      credit card: cleared(from register) − inflight − set-aside  (pending payments reduce owed)
+      cash/bank:   online (posted) + inflight − set-aside
     Accounts with manual_balance keep their hand-set current_balance."""
     if account.manual_balance:
         return account.current_balance
-    unc = account.transactions.filter(
+    inflight = account.transactions.filter(
         status=TxnStatus.UNCLEARED).aggregate(s=Sum('amount'))['s'] or Decimal('0')
-    bal = (account.online_balance or Decimal('0')) + unc - account.allocated_total
+    alloc = account.allocated_total
+    if account.type == AccountType.CREDIT_CARD:
+        cleared = account.transactions.filter(
+            status__in=[TxnStatus.CLEARED, TxnStatus.RECONCILED]
+        ).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        bal = cleared - inflight - alloc
+    else:
+        bal = (account.online_balance or Decimal('0')) + inflight - alloc
     Account.objects.filter(pk=account.pk).update(current_balance=bal)
     account.current_balance = bal
     return bal
