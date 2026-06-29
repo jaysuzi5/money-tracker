@@ -153,6 +153,15 @@ def dashboard(request):
         if sort in SORT_KEYS:
             txns.sort(key=SORT_KEYS[sort], reverse=(direction == 'desc'))
 
+        # Credit cards: running balance follows the DISPLAYED order and is owed-based
+        # (charges raise the balance, payments/credits lower it). Anchored so the last
+        # row = current balance; the last cleared row then shows the cleared balance.
+        if account.type == AccountType.CREDIT_CARD:
+            run = account.current_balance
+            for t in reversed(txns):
+                t.running = run
+                run += t.amount
+
         if account.type == AccountType.CREDIT_CARD:
             cleared = account.transactions.filter(
                 status__in=[TxnStatus.CLEARED, TxnStatus.RECONCILED]
