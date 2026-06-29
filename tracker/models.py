@@ -267,7 +267,7 @@ def recompute_balance(account):
         cleared = account.transactions.filter(
             status__in=[TxnStatus.CLEARED, TxnStatus.RECONCILED]
         ).aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        bal = cleared - inflight - alloc
+        bal = inflight - cleared - alloc  # liability: negative when owed
     else:
         bal = (account.online_balance or Decimal('0')) + inflight - alloc
     Account.objects.filter(pk=account.pk).update(current_balance=bal)
