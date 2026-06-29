@@ -1,0 +1,19 @@
+<div class="cat-tree-item d-flex align-items-center justify-content-between" style="padding-left: {{ depth }}.5rem">
+  <div>
+    {% if node.children %}<i class="bi bi-caret-down-fill cat-toggle text-secondary" role="button" data-target="catkids-{{ node.cat.id }}" style="font-size:.7rem"></i>{% else %}<span style="display:inline-block;width:14px"></span>{% endif %}
+    <i class="bi bi-{% if node.children %}folder-fill text-warning{% else %}tag text-secondary{% endif %} me-1"></i>
+    <a href="{% url 'tracker:category_summary' node.cat.id %}" class="fw-{% if not node.cat.parent %}semibold{% else %}normal{% endif %}">{{ node.cat.name }}</a>
+    <span class="text-secondary small ms-2">{{ node.count }} txn{{ node.count|pluralize }}</span>
+  </div>
+  <div class="d-flex gap-1">
+    <a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'tracker:category_edit' node.cat.id %}"><i class="bi bi-pencil"></i></a>
+    <form method="post" action="{% url 'tracker:category_delete' node.cat.id %}" onsubmit="return confirm('Delete {{ node.cat.name }}?')" class="m-0">{% csrf_token %}
+      <button class="btn btn-sm btn-outline-danger py-0" {% if node.count %}disabled title="Has transactions"{% endif %}><i class="bi bi-trash"></i></button>
+    </form>
+  </div>
+</div>
+{% if node.children %}
+<div class="cat-children" id="catkids-{{ node.cat.id }}">
+  {% for child in node.children %}{% include 'tracker/_cattree.html' with node=child depth=depth|add:'1' %}{% endfor %}
+</div>
+{% endif %}

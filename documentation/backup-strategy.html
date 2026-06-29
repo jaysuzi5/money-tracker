@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money Tracker — Backup Strategy</title>
+<style>
+  :root{--bg:#0f1419;--panel:#171c23;--ink:#e6edf3;--mut:#9aa7b4;--line:#2a323c;--accent:#4aa3ff;--good:#3fb950;--warn:#d29922;}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:920px;margin:0 auto;padding:40px 28px 120px}
+  h1{font-size:30px;margin:0 0 4px}h2{font-size:22px;margin:42px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  h3{font-size:17px;margin:22px 0 6px;color:#cdd9e5}
+  code{background:#1d242d;padding:1px 6px;border-radius:5px;font-size:13px;color:#9fd0ff;font-family:"SF Mono",Menlo,monospace}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;font-size:12.5px;font-family:"SF Mono",Menlo,monospace;color:#c8d4df}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:#1d242d}
+  .sub{color:var(--mut)}
+  .rec{border-left:3px solid var(--good);background:rgba(63,185,80,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .note{border-left:3px solid var(--accent);background:rgba(74,163,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .pill{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;font-weight:600;background:rgba(63,185,80,.15);color:var(--good)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Backup Strategy</h1>
+<p class="sub">Money Tracker &middot; last updated 2026-06-28</p>
+
+<h2>Question: is plain PostgreSQL backup enough?</h2>
+<p>Short answer: <b>a tiered <code>pg_dump</code> to offsite S3 is the correct baseline</b> — but for personal
+finance there is one meaningful improvement worth adding, so this app does <b>both</b>:</p>
+<ol>
+  <li><b>Logical <code>pg_dump</code></b> (custom format, compressed) — exact, point-in-time database restore.</li>
+  <li><b>Open-format <code>QIF</code> export</b> — an application- and schema-independent copy of every
+  account/transaction/split, re-importable into Quicken <i>or</i> a rebuilt Money Tracker even if the
+  database, this app, or its schema no longer exists.</li>
+</ol>
+<div class="rec"><b>Why the QIF layer matters:</b> a <code>pg_dump</code> is only restorable into a compatible
+PostgreSQL with this app's schema. For data you intend to keep for decades, that's fragile coupling. The
+QIF export is plain text in a 30-year-old standard format — it survives the app entirely. Belt <i>and</i>
+suspenders.</div>
+
+<h2>What runs, and when</h2>
+<table>
+<thead><tr><th>Job</th><th>Schedule</th><th>What</th><th>Retention</th></tr></thead>
+<tbody>
+<tr><td><code>backup-local</code></td><td>every 6h</td><td><code>pg_dump -F c -Z 9</code> → NFS PVC</td><td>7 days (local)</td></tr>
+<tr><td><code>qif-export</code></td><td>daily 01:30</td><td><code>manage.py export_qif</code> → <code>.qif</code> on PVC</td><td>14 days (local)</td></tr>
+<tr><td><code>cloud-daily</code></td><td>daily 02:00</td><td>latest <code>.dump</code> + <code>.qif</code> → S3</td><td>per bucket lifecycle</td></tr>
+<tr><td><code>cloud-monthly</code></td><td>1st @ 03:00</td><td>latest dump → S3 monthly</td><td>long</td></tr>
+<tr><td><code>cloud-yearly</code></td><td>Jan 1 @ 04:00</td><td>latest dump → S3 yearly</td><td>permanent</td></tr>
+</tbody>
+</table>
+
+<h3>S3 layout (bucket <code>jay-curtis-backup</code>)</h3>
+<pre>money-tracker/
+  backups/
+    daily/2026/06/28/mt-20260628-020000.dump
+    monthly/2026/06/mt-...dump
+    yearly/2026/mt-...dump
+  exports/
+    2026/06/28/mt-20260628.qif        &lt;- portable open-format archive
+</pre>
+<p class="sub">Storage class <code>STANDARD_IA</code>. Mirrors the vacation-planner pattern; same bucket, separate prefix.</p>
+
+<h2>Is there a still-better strategy? (considered, rejected)</h2>
+<table>
+<thead><tr><th>Option</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Continuous WAL archiving / PITR</td><td>Overkill. This app ingests once/day; sub-second recovery granularity has no value for personal finance. The CloudNativePG cluster already takes base backups at the cluster layer.</td></tr>
+<tr><td>Filesystem/volume snapshots</td><td>Couples backups to storage tech; <code>pg_dump</code> is more portable across PG versions.</td></tr>
+<tr><td>Per-table CSV dumps</td><td>QIF already gives an open-format copy that round-trips through the app's own importer; CSV-per-table adds nothing.</td></tr>
+<tr><td><b>pg_dump (tiered, offsite) + QIF export</b></td><td><span class="pill">CHOSEN</span> Simple, portable, app-independent, cheap.</td></tr>
+</tbody>
+</table>
+
+<h2>Restore procedures</h2>
+<h3>From a pg_dump (full database)</h3>
+<pre># pull a dump from S3 (or the PVC), then:
+pg_restore -h postgresql-rw.postgresql.svc.cluster.local -U money_tracker \
+  -d money_tracker --clean --if-exists mt-YYYYMMDD-HHMMSS.dump</pre>
+
+<h3>From QIF (app-independent rebuild)</h3>
+<pre># into a fresh Money Tracker (after migrate + seed_categories):
+uv run python manage.py import_qif money-tracker-all.qif --institution &lt;name&gt;
+# or import into Quicken: File &gt; Import &gt; QIF</pre>
+
+<h2>On-demand export</h2>
+<ul>
+  <li>UI: user menu &rarr; <b>Export all (QIF)</b>, or per-account <b>Export QIF</b> on the register.</li>
+  <li>CLI: <code>manage.py export_qif --output file.qif</code>.</li>
+</ul>
+
+<h2>Setup note</h2>
+<p>The S3 cloud jobs require a <code>money-tracker-s3</code> secret with <code>aws_access_key_id</code> /
+<code>aws_secret_access_key</code> (see <code>k8s/s3-secret.example.yaml</code>, seal with kubeseal). The
+local <code>pg_dump</code> and <code>qif-export</code> jobs run without it.</p>
+</div>
+</body>
+</html>

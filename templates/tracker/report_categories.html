@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Category report{% endblock %}
+{% block content %}
+<div class="mt-page-header"><h1>Category report</h1><a href="{% url 'tracker:reports' %}" class="btn btn-light"><i class="bi bi-arrow-left"></i> Reports</a></div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label">Range</label>
+        <select name="range" class="form-select form-select-sm">
+          <option value="all" {% if preset == 'all' %}selected{% endif %}>All dates</option>
+          <option value="ytd" {% if preset == 'ytd' %}selected{% endif %}>Year to date</option>
+          <option value="12m" {% if preset == '12m' %}selected{% endif %}>Last 12 months</option>
+          <option value="3m" {% if preset == '3m' %}selected{% endif %}>Last 3 months</option>
+        </select>
+      </div>
+      <div class="col-auto"><label class="form-label">From</label><input type="date" name="start" value="{{ start }}" class="form-control form-control-sm"></div>
+      <div class="col-auto"><label class="form-label">To</label><input type="date" name="end" value="{{ end }}" class="form-control form-control-sm"></div>
+      <div class="col-auto">
+        <label class="form-label">Detail</label>
+        <select name="level" class="form-select form-select-sm">
+          <option value="top" {% if level == 'top' %}selected{% endif %}>Categories only</option>
+          <option value="sub" {% if level == 'sub' %}selected{% endif %}>Categories + subcategories</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Limit to</label>
+        <select name="cats" class="form-select form-select-sm tsearch" multiple style="min-width:220px">
+          {% for r in all_roots %}<option value="{{ r.id }}" {% if r.id|stringformat:'s' in selected %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-auto"><button class="btn btn-sm btn-primary">Apply</button> <a href="?" class="btn btn-sm btn-light">Reset</a></div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card table-card">
+      <div class="card-header d-flex justify-content-between"><span><i class="bi bi-arrow-down-circle text-success me-1"></i> Income</span><span class="num">${{ income_total|floatformat:2|intcomma }}</span></div>
+      <table class="table">
+        <tbody>
+        {% for n in income %}
+          <tr><td><a href="{% url 'tracker:category_summary' n.cat.id %}" class="fw-semibold">{{ n.cat.name }}</a></td><td class="text-end num">${{ n.total|floatformat:2|intcomma }}</td></tr>
+          {% for c in n.children %}<tr><td class="ps-4 small">{{ c.cat.name }}</td><td class="text-end num small">${{ c.total|floatformat:2|intcomma }}</td></tr>{% endfor %}
+        {% empty %}<tr><td class="empty-state" colspan="2">No income categories.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card table-card">
+      <div class="card-header d-flex justify-content-between"><span><i class="bi bi-arrow-up-circle text-danger me-1"></i> Spending</span><span class="num">${{ spending_total|floatformat:2|intcomma }}</span></div>
+      <table class="table">
+        <tbody>
+        {% for n in spending %}
+          <tr><td><a href="{% url 'tracker:category_summary' n.cat.id %}" class="fw-semibold">{{ n.cat.name }}</a></td><td class="text-end num {% if n.total < 0 %}amount-neg{% endif %}">${{ n.total|floatformat:2|intcomma }}</td></tr>
+          {% for c in n.children %}<tr><td class="ps-4 small">{{ c.cat.name }}</td><td class="text-end num small {% if c.total < 0 %}amount-neg{% endif %}">${{ c.total|floatformat:2|intcomma }}</td></tr>{% endfor %}
+        {% empty %}<tr><td class="empty-state" colspan="2">No spending categories.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="card mt-3"><div class="card-body d-flex justify-content-between"><strong>Net (income + spending)</strong><strong class="num {% if net_total < 0 %}amount-neg{% else %}amount-pos{% endif %}">${{ net_total|floatformat:2|intcomma }}</strong></div></div>
+{% endblock %}

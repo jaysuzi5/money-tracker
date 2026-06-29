@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Review queue{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div><h1>Review queue</h1><div class="subtitle">Imported bank transactions the matcher couldn't auto-pair to a receipt.</div></div>
+</div>
+
+{% for row in rows %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="badge type-badge">{{ row.imported.account.name }}</span>
+          <span class="text-secondary small ms-1">{{ row.imported.date|date:"M j, Y" }}</span>
+          <div class="mt-1"><strong>{{ row.imported.payee|default:row.imported.memo }}</strong>
+            <span class="num {% if row.imported.amount < 0 %}amount-neg{% else %}amount-pos{% endif %} ms-2">${{ row.imported.amount|floatformat:2 }}</span>
+          </div>
+        </div>
+        <form method="post" action="{% url 'tracker:accept_import' row.imported.id %}" class="m-0">{% csrf_token %}
+          <button class="btn btn-sm btn-outline-secondary">Keep as-is</button>
+        </form>
+      </div>
+      {% if row.candidates %}
+        <div class="mt-3 pt-2 border-top">
+          <div class="small text-secondary mb-2">Candidate receipts</div>
+          {% for c in row.candidates %}
+            <form method="post" action="{% url 'tracker:match_pair' %}" class="d-flex align-items-center gap-2 mb-2">{% csrf_token %}
+              <input type="hidden" name="imported_id" value="{{ row.imported.id }}">
+              <input type="hidden" name="manual_id" value="{{ c.id }}">
+              <span class="small">{{ c.date|date:"M j" }} · {{ c.payee }} · <span class="num">${{ c.amount|floatformat:2 }}</span> · {{ c.category|default:"uncategorized" }}</span>
+              <button class="btn btn-sm btn-success"><i class="bi bi-link-45deg"></i> Match</button>
+            </form>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="small text-secondary mt-2">No matching receipt found.</div>
+      {% endif %}
+    </div>
+  </div>
+{% empty %}
+  <div class="card"><div class="card-body"><div class="empty-state"><i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i>All bank transactions matched.</div></div></div>
+{% endfor %}
+{% endblock %}

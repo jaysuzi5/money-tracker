@@ -1,0 +1,5 @@
+<th {% if width %}style="width:{{ width }}"{% endif %} class="{% if center %}text-center{% elif num %}num{% endif %}">
+  <a class="qk-sort" href="{{ qbase }}&sort={{ col }}&dir={% if sort == col and dir == 'asc' %}desc{% else %}asc{% endif %}">
+    {{ label }}{% if sort == col %}<i class="bi bi-caret-{% if dir == 'asc' %}up{% else %}down{% endif %}-fill ms-1"></i>{% endif %}
+  </a>
+</th>

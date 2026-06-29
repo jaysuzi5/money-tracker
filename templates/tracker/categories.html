@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}Categories{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div><h1>Categories</h1><div class="subtitle">Click a category to see its transactions and re-assign them. Counts include split lines.</div></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <a href="{% url 'tracker:uncategorized_summary' %}" class="text-decoration-none">
+      <div class="card mb-3">
+        <div class="card-body d-flex justify-content-between align-items-center py-2">
+          <span><i class="bi bi-question-circle text-warning me-1"></i> <strong>Uncategorized</strong> <span class="text-secondary small">transactions needing a category</span></span>
+          <span class="badge text-bg-warning">{{ uncategorized_count }}</span>
+        </div>
+      </div>
+    </a>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-tags me-1"></i> Category tree</span>
+        <span class="d-flex gap-1">
+          <button type="button" id="cat-collapse" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-chevron-up"></i> Collapse all</button>
+          <button type="button" id="cat-expand" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-chevron-down"></i> Expand all</button>
+        </span>
+      </div>
+      <div class="card-body" id="cat-tree">
+        {% for node in roots %}
+          {% include 'tracker/_cattree.html' with node=node depth=0 %}
+        {% empty %}
+          <div class="empty-state">No categories yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-plus-circle me-1"></i> Add category</div>
+      <div class="card-body">
+        <form method="post">{% csrf_token %}
+          {% for f in form %}
+            <div class="mb-3">
+              <label class="form-label">{{ f.label }}</label>
+              {{ f }}
+              {% if f.help_text %}<div class="form-text">{{ f.help_text }}</div>{% endif %}
+              {{ f.errors }}
+            </div>
+          {% endfor %}
+          <button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Add</button>
+        </form>
+        <p class="form-text mt-3 mb-0">Blank parent = top level. Pick a parent (or a subcategory) to nest deeper.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function setCaret(el, open) { el.classList.toggle('bi-caret-down-fill', open); el.classList.toggle('bi-caret-right-fill', !open); }
+  document.querySelectorAll('.cat-toggle').forEach(t => {
+    t.addEventListener('click', () => {
+      const kids = document.getElementById(t.dataset.target);
+      if (!kids) return;
+      const open = kids.style.display !== 'none';
+      kids.style.display = open ? 'none' : '';
+      setCaret(t, !open);
+    });
+  });
+  document.getElementById('cat-collapse').onclick = () => {
+    document.querySelectorAll('#cat-tree .cat-children').forEach(k => k.style.display = 'none');
+    document.querySelectorAll('#cat-tree .cat-toggle').forEach(t => setCaret(t, false));
+  };
+  document.getElementById('cat-expand').onclick = () => {
+    document.querySelectorAll('#cat-tree .cat-children').forEach(k => k.style.display = '');
+    document.querySelectorAll('#cat-tree .cat-toggle').forEach(t => setCaret(t, true));
+  };
+</script>
+{% endblock %}

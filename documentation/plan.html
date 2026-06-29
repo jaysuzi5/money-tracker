@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money Tracker — Project Plan</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#171c23; --panel2:#1d242d; --ink:#e6edf3; --mut:#9aa7b4;
+    --line:#2a323c; --accent:#4aa3ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+    --chip:#243240;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 28px 120px}
+  h1{font-size:34px;margin:0 0 6px;letter-spacing:-.5px}
+  h2{font-size:24px;margin:54px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:18px;margin:28px 0 8px;color:#cdd9e5}
+  h4{font-size:15px;margin:18px 0 6px;color:#cdd9e5}
+  p,li{color:var(--ink)}
+  .sub{color:var(--mut);font-size:15px;margin:0 0 4px}
+  a{color:var(--accent);text-decoration:none}
+  code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:13px;
+    font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#9fd0ff}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;
+    overflow:auto;font-size:12.5px;line-height:1.5;
+    font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#c8d4df}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#cdd9e5;font-weight:600}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .chip{display:inline-block;background:var(--chip);border:1px solid var(--line);
+    border-radius:999px;padding:2px 10px;font-size:12px;color:#cfe2f3;margin:2px 4px 2px 0}
+  .pill{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;font-weight:600}
+  .p-good{background:rgba(63,185,80,.15);color:var(--good)}
+  .p-warn{background:rgba(210,153,34,.15);color:var(--warn)}
+  .p-bad{background:rgba(248,81,73,.15);color:var(--bad)}
+  .p-info{background:rgba(74,163,255,.15);color:var(--accent)}
+  .rec{border-left:3px solid var(--good);background:rgba(63,185,80,.06);
+    padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .note{border-left:3px solid var(--accent);background:rgba(74,163,255,.06);
+    padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .danger{border-left:3px solid var(--bad);background:rgba(248,81,73,.06);
+    padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .toc{columns:2;column-gap:30px;font-size:14px}
+  @media(max-width:760px){.toc{columns:1}}
+  .toc a{display:block;padding:3px 0;color:#bcd}
+  .lede{font-size:17px;color:#cdd9e5;border-left:3px solid var(--accent);padding:10px 18px;
+    background:rgba(74,163,255,.05);border-radius:0 8px 8px 0}
+  hr{border:0;border-top:1px solid var(--line);margin:40px 0}
+  .ascii{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:12px;line-height:1.35;
+    white-space:pre;color:#a8c5dd}
+  .qid{display:inline-block;min-width:34px;color:var(--warn);font-weight:700}
+  .meta{color:var(--mut);font-size:13px}
+  ul.tight li{margin:2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Money Tracker</h1>
+<p class="sub">A self-hosted Quicken replacement &middot; Django + PostgreSQL on local k8s</p>
+<p class="meta">Plan v0.2 &middot; 2026-06-26 &middot; status: <span class="pill p-good">DECISIONS LOCKED — building</span></p>
+
+<div class="lede">
+Goal: replace a 20-year Quicken habit with a self-owned app you control — no subscription, reports
+tailored to you, data 100% local in PostgreSQL. The make-or-break feature is <b>automatic daily
+data pull</b> from your financial institutions with <b>no manual download/upload</b>. This plan
+recommends a connection strategy, a data model that handles your envelope/"dummy" sub-accounts and
+hierarchical categories, and a deployment that mirrors the existing <code>vacation-planner</code> app.
+</div>
+
+<h2>Contents</h2>
+<div class="toc card">
+  <a href="#goals">1. Goals &amp; non-goals</a>
+  <a href="#accounts">2. Your account inventory</a>
+  <a href="#stack">3. Tech stack (mirrors vacation-planner)</a>
+  <a href="#arch">4. Architecture overview</a>
+  <a href="#ingest">5. The hard part: getting the data (connectivity)</a>
+  <a href="#agent">6. Sync agent design</a>
+  <a href="#model">7. Data model</a>
+  <a href="#buckets">8. Envelope / "dummy" sub-accounts</a>
+  <a href="#reconcile">9. Receipt logging &amp; reconciliation</a>
+  <a href="#categories">10. Categories</a>
+  <a href="#reports">11. Reports</a>
+  <a href="#security">12. Security &amp; secrets</a>
+  <a href="#deploy">13. Deployment (k8s)</a>
+  <a href="#roadmap">14. Phased roadmap</a>
+  <a href="#questions">15. Open questions for you</a>
+</div>
+
+<!-- 1 -->
+<h2 id="goals">1. Goals &amp; non-goals</h2>
+<div class="grid">
+  <div class="card">
+    <h4>Goals</h4>
+    <ul class="tight">
+      <li>All data local in PostgreSQL on your k8s cluster.</li>
+      <li>Automatic daily pull from all institutions — zero manual file shuffling.</li>
+      <li>Per-transaction detail + reconciliation for <b>Discover</b> and <b>PSECU checking</b>.</li>
+      <li>Balance + holdings tracking for investment/retirement accounts.</li>
+      <li>Envelope sub-accounts (allowances, sinking funds).</li>
+      <li>Configurable hierarchical categories (Utilities &rarr; Electric).</li>
+      <li>Transfers between accounts.</li>
+      <li>Custom reports / net worth over time.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Non-goals (v1)</h4>
+    <ul class="tight">
+      <li>Bill pay / moving money (read-only aggregation only).</li>
+      <li>Multi-user SaaS — single household, you + wife.</li>
+      <li>Tax-lot accounting / cap-gains optimization.</li>
+      <li>Mobile native app (responsive web is enough; PWA like vacation-planner).</li>
+      <li>Replicating every Quicken report — build the few you actually use.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 2 -->
+<h2 id="accounts">2. Your account inventory</h2>
+<p class="sub">Detail level drives effort. "Reconcile" = every transaction matched. "Balance/holdings" = daily snapshot for net worth.</p>
+<table>
+<thead><tr><th>Institution / login</th><th>Account</th><th>Type</th><th>Detail needed</th><th>Envelopes</th></tr></thead>
+<tbody>
+<tr><td rowspan="3">PSECU (credit union)</td><td>Checking</td><td>Checking</td><td><span class="pill p-bad">Reconcile — full</span></td><td>Self allowance, Wife allowance</td></tr>
+<tr><td>Savings</td><td>Savings</td><td><span class="pill p-info">Balance</span></td><td>—</td></tr>
+<tr><td>Money Market</td><td>Money market</td><td><span class="pill p-info">Balance (deprecating)</span></td><td>—</td></tr>
+<tr><td rowspan="2">Wealthfront</td><td>Investment</td><td>Brokerage</td><td><span class="pill p-info">Balance + holdings</span></td><td>—</td></tr>
+<tr><td>Cash Account</td><td>Cash / HYSA</td><td><span class="pill p-warn">Balance + transfers</span></td><td>Appliances, Christmas, Insurance, Lawn, Megan's Wedding, Propane, Tax: City, Tax: County, Tax: School, Vacation</td></tr>
+<tr><td rowspan="6">Fidelity — you</td><td>IBM 401(k)</td><td>401(k)</td><td rowspan="6"><span class="pill p-info">Balance + holdings</span></td><td rowspan="6">—</td></tr>
+<tr><td>Horizon 401(k)</td><td>401(k)</td></tr>
+<tr><td>Roth IRA</td><td>IRA</td></tr>
+<tr><td>Traditional IRA</td><td>IRA</td></tr>
+<tr><td>HSA</td><td>HSA</td></tr>
+<tr><td>Pension</td><td>Pension</td></tr>
+<tr><td rowspan="2">Fidelity — wife</td><td>Roth IRA</td><td>IRA</td><td rowspan="2"><span class="pill p-info">Balance + holdings</span></td><td rowspan="2">—</td></tr>
+<tr><td>Traditional IRA</td><td>IRA</td></tr>
+<tr><td>Discover</td><td>Credit card</td><td>Credit card</td><td><span class="pill p-bad">Reconcile — full</span></td><td>—</td></tr>
+</tbody>
+</table>
+<p class="meta">5 institution logins, ~15 accounts, 12 envelopes. Only 2 accounts need per-transaction reconciliation; the rest are balance/holdings snapshots.</p>
+
+<!-- 3 -->
+<h2 id="stack">3. Tech stack (mirrors vacation-planner)</h2>
+<p>Reuse the proven pattern so deployment and ops are familiar.</p>
+<table>
+<thead><tr><th>Layer</th><th>Choice</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Language</td><td>Python 3.12</td><td>Same as vacation-planner</td></tr>
+<tr><td>Framework</td><td>Django 6.0</td><td>Class-based views, admin, ORM</td></tr>
+<tr><td>DB</td><td>PostgreSQL 17</td><td><code>postgresql-rw.postgresql.svc.cluster.local:5432</code>, new DB <code>money_tracker</code></td></tr>
+<tr><td>DB driver / config</td><td>psycopg2-binary + django-environ</td><td><code>DATABASE_URL</code> env var</td></tr>
+<tr><td>Deps mgmt</td><td>uv + pyproject.toml</td><td>Same Dockerfile pattern</td></tr>
+<tr><td>App server</td><td>gunicorn (4 workers)</td><td><code>config.wsgi:application</code></td></tr>
+<tr><td>Static</td><td>WhiteNoise</td><td>Compressed manifest</td></tr>
+<tr><td>Auth</td><td>django-allauth (Google OAuth)</td><td>Household: you + wife; user-scoped data</td></tr>
+<tr><td>Observability</td><td>OpenTelemetry &rarr; otel-collector</td><td><code>http://otel-collector-collector.monitoring.svc.cluster.local:4318</code></td></tr>
+<tr><td>Encryption</td><td>cryptography (Fernet)</td><td>Encrypt any stored creds/tokens at rest</td></tr>
+<tr><td>Scraping (if needed)</td><td>Playwright (headless Chromium)</td><td>Fallback connector only — see &sect;5</td></tr>
+<tr><td>Image registry</td><td><code>jaysuzi5/money-tracker</code></td><td>Docker Hub, multi-arch buildx</td></tr>
+<tr><td>Secrets</td><td>Bitnami SealedSecrets</td><td>Same as vacation-planner</td></tr>
+<tr><td>Backups</td><td>k8s CronJob pg_dump + S3</td><td>Reuse the 3-tier backup pattern</td></tr>
+</tbody>
+</table>
+<div class="note"><b>New addition vs vacation-planner:</b> a <b>sync engine</b> + connector framework, run as a k8s CronJob (daily) and on-demand from the UI. This is the only architecturally new piece.</div>
+
+<!-- 4 -->
+<h2 id="arch">4. Architecture overview</h2>
+<div class="card">
+<div class="ascii">
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                     money-tracker namespace                       │
+  │                                                                   │
+  │   ┌──────────────┐      ┌───────────────────────────────────┐    │
+  │   │  Web (Django)│      │   Sync CronJob (daily 06:00)       │    │
+  │   │  gunicorn    │      │   manage.py sync_accounts          │    │
+  │   │  - register  │      │   ┌─────────────────────────────┐  │    │
+  │   │  - reconcile │      │   │ Connector framework         │  │    │
+  │   │  - reports   │◄────►│   │  • SimpleFIN  (primary)     │  │    │
+  │   │  - on-demand │      │   │  • Plaid      (optional)    │  │    │
+  │   │    "Sync now"│      │   │  • Playwright (fallback)    │  │    │
+  │   └──────┬───────┘      │   └──────────────┬──────────────┘  │    │
+  │          │              └──────────────────┼─────────────────┘    │
+  │          │                                 │                      │
+  │          ▼                                 ▼                      │
+  │   ┌───────────────────────────────────────────────────────┐     │
+  │   │            PostgreSQL  (money_tracker DB)              │     │
+  │   │  institutions · accounts · buckets · transactions     │     │
+  │   │  holdings · balance_snapshots · categories · sync_runs│     │
+  │   └───────────────────────────────────────────────────────┘     │
+  └─────────────────────────────────────────────────────────────────┘
+        ▲                                  │
+        │ HTTPS (Cloudflare)               ▼ outbound API / headless browser
+   you / wife                       SimpleFIN Bridge · Plaid · bank sites
+</div>
+</div>
+<p>The <b>connector framework</b> is a pluggable interface: each connector returns a normalized
+list of accounts, balances, holdings, and transactions. The sync engine upserts them and runs the
+matcher. This means you can start with SimpleFIN for everything and swap individual institutions to
+a scraper later without touching the rest of the app.</p>
+
+<!-- 5 -->
+<h2 id="ingest">5. The hard part: getting the data</h2>
+<p>This is the deciding feature. Three viable approaches, in order of recommendation.</p>
+
+<h3>Option A — SimpleFIN Bridge <span class="pill p-good">RECOMMENDED PRIMARY</span></h3>
+<div class="grid">
+  <div class="card">
+    <h4>What it is</h4>
+    <p>A privacy-first aggregation service built for personal-finance apps (it's what Actual Budget
+    uses). You log into each institution <i>once</i> on SimpleFIN's site; it hands your app a single
+    read-only access token. Your app polls a REST endpoint for accounts, balances, and transactions.</p>
+    <ul class="tight">
+      <li><b>Cost:</b> ~$1.50/mo or $15/yr — flat, not per-call.</li>
+      <li><b>Cadence:</b> refreshes ~once/24h — matches your daily goal exactly.</li>
+      <li><b>Read-only</b> by design; can't move money.</li>
+      <li><b>You never store bank passwords</b> — only a SimpleFIN token (encrypted at rest).</li>
+      <li>Covers <b>Fidelity</b> (Plaid does <i>not</i> — see Option B), brokerages, banks, credit unions, cards.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Why it fits you</h4>
+    <ul class="tight">
+      <li>Daily-pull model is literally its design point.</li>
+      <li>Handles MFA on its side during the one-time link — you're not building MFA automation.</li>
+      <li>Cheapest path; replaces a Quicken subscription with a near-zero fee.</li>
+      <li>One integration covers all 5 logins if all are supported.</li>
+    </ul>
+    <h4>Risks</h4>
+    <ul class="tight">
+      <li><span class="pill p-warn">Verify coverage</span> for PSECU, Wealthfront, Discover, both Fidelity logins before committing.</li>
+      <li>Transaction granularity for credit-union checking can vary — confirm Discover &amp; PSECU give per-transaction detail (they generally do).</li>
+      <li>Periodic re-auth when an institution forces it (handled via a UI "re-link" prompt).</li>
+    </ul>
+  </div>
+</div>
+<div class="rec"><b>Recommendation:</b> Build the SimpleFIN connector first. Before writing code, create a
+free SimpleFIN account and confirm each of your 5 institutions links and returns the detail you need.
+This single check de-risks the whole project.</div>
+
+<h3>Option B — Plaid <span class="pill p-warn">SECONDARY / SELECTIVE</span></h3>
+<ul class="tight">
+  <li>Best-in-class coverage and clean categorized data <b>but Fidelity does not use Plaid</b> — a hard gap for your 8 Fidelity accounts.</li>
+  <li>Production access requires an approval process; pricing is per-item/per-call and oriented at businesses, not hobbyists.</li>
+  <li>You'd hold Plaid access tokens; data flows through Plaid infra (less private than SimpleFIN).</li>
+  <li>Reasonable only as a <i>fallback</i> for a specific institution SimpleFIN can't do well — and not for Fidelity.</li>
+</ul>
+
+<h3>Option C — Browser-automation scraping (Playwright) <span class="pill p-bad">FALLBACK ONLY</span></h3>
+<p>An "agent" that logs into each site in a headless browser and scrapes. Full control, no third
+party, but real costs:</p>
+<div class="grid">
+  <div class="card"><h4>Pros</h4><ul class="tight">
+    <li>Works for any site, any field, full transaction detail.</li>
+    <li>No per-account fees beyond compute.</li>
+    <li>No third party sees your data.</li>
+  </ul></div>
+  <div class="card"><h4>Cons</h4><ul class="tight">
+    <li><b>MFA is the killer</b> — most accounts force 2FA; automating it is fragile.</li>
+    <li>You <b>must store bank passwords</b> (encrypted) — bigger blast radius.</li>
+    <li>Breaks whenever a site changes layout; ongoing maintenance.</li>
+    <li>May violate institution Terms of Service; risk of lockouts/captcha.</li>
+  </ul></div>
+</div>
+<div class="note"><b>MFA handling pattern (if you ever need a scraper):</b> store a persistent
+browser profile / session cookies per institution so re-login is rare; where the bank offers an
+app-specific or read-only password, use it; for live OTP, have the scraper pause and send you a
+push notification, you enter the code in the UI, the scraper resumes. Treat this as a per-institution
+last resort, not the default.</div>
+
+<h3>Decision matrix</h3>
+<table>
+<thead><tr><th>Criterion</th><th>SimpleFIN</th><th>Plaid</th><th>Scraping</th></tr></thead>
+<tbody>
+<tr><td>Stores bank password?</td><td class="p-good">No</td><td class="p-good">No</td><td class="p-bad">Yes</td></tr>
+<tr><td>Covers Fidelity?</td><td class="p-good">Yes</td><td class="p-bad">No</td><td class="p-good">Yes</td></tr>
+<tr><td>Cost</td><td class="p-good">~$15/yr</td><td class="p-warn">Per-call, biz pricing</td><td class="p-good">Compute only</td></tr>
+<tr><td>Daily auto-pull</td><td class="p-good">Native</td><td class="p-good">Yes</td><td class="p-warn">DIY</td></tr>
+<tr><td>MFA burden on you</td><td class="p-good">Low (one-time)</td><td class="p-good">Low</td><td class="p-bad">High/ongoing</td></tr>
+<tr><td>Maintenance</td><td class="p-good">Low</td><td class="p-warn">Medium</td><td class="p-bad">High</td></tr>
+<tr><td>Privacy</td><td class="p-good">High</td><td class="p-warn">Medium</td><td class="p-good">Highest</td></tr>
+</tbody>
+</table>
+<div class="rec"><b>Strategy:</b> SimpleFIN for all accounts. Keep the connector interface pluggable so
+any single institution can drop to a Playwright scraper later if SimpleFIN coverage/detail disappoints —
+without rewriting the app.</div>
+
+<!-- 6 -->
+<h2 id="agent">6. Sync agent design</h2>
+<h3>Connector interface</h3>
+<pre>class Connector(Protocol):
+    def fetch(self, credential: ConnectionCredential) -> SyncResult: ...
+
+# SyncResult is normalized, source-agnostic:
+@dataclass
+class SyncResult:
+    accounts:     list[NormAccount]      # external_id, name, type, balance, currency
+    holdings:     list[NormHolding]      # account_ext_id, symbol, qty, price, value
+    transactions: list[NormTxn]          # account_ext_id, ext_id, date, amount, payee, memo
+</pre>
+<p>Implementations: <code>SimpleFinConnector</code> (v1), <code>PlaidConnector</code> /
+<code>PlaywrightConnector</code> (later). The sync engine doesn't care which produced the data.</p>
+
+<h3>Sync engine flow (per run)</h3>
+<pre>manage.py sync_accounts [--institution X] [--since DATE]
+  for each active ConnectionCredential:
+    result = connector.fetch(credential)
+    upsert accounts (match on external_id)
+    snapshot balances  -> BalanceSnapshot (one row/account/day)
+    replace holdings    -> Holding (investment accounts)
+    for each txn:
+       dedupe on (account, external_id)        # idempotent re-runs
+       insert as status=IMPORTED, cleared=True
+       run matcher against manual UNCLEARED txns
+    write SyncRun row (counts, errors, duration)  # audit, like vacation-planner logging
+</pre>
+<ul class="tight">
+  <li><b>Idempotent:</b> external transaction IDs prevent duplicates on re-sync.</li>
+  <li><b>Scheduled:</b> k8s CronJob daily ~06:00 (mirrors backup CronJob pattern) running the management command.</li>
+  <li><b>On-demand:</b> a "Sync now" button in the UI triggers the same command for a single institution.</li>
+  <li><b>Observable:</b> every run logged + OTEL span + a <code>SyncRun</code> record visible in the UI (last-synced badge per account).</li>
+</ul>
+
+<!-- 7 -->
+<h2 id="model">7. Data model</h2>
+<div class="card">
+<div class="ascii">
+ User
+  └─< Institution (PSECU, Wealthfront, Fidelity-you, Fidelity-wife, Discover)
+        ├─ ConnectionCredential (encrypted token; connector type; last_synced)
+        └─< Account (type, current_balance, is_reconcilable)
+              ├─< Bucket            (virtual envelope; name; balance)
+              ├─< Transaction       (date, amount, payee, category, status, cleared, ext_id)
+              ├─< Holding           (symbol, qty, price, value)   [investment]
+              └─< BalanceSnapshot   (date, balance)               [history/net worth]
+
+ Category (self-FK parent → subcategory)         Payee (optional, autocomplete)
+ Transfer (links two Transactions across accounts)
+ SyncRun  (audit per sync)                        ReconciliationSession (per account/period)
+</div>
+</div>
+
+<h3>Key entities</h3>
+<table>
+<thead><tr><th>Model</th><th>Important fields</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><b>Institution</b></td><td>user FK, name, connector_type</td><td>One per login (Fidelity-you ≠ Fidelity-wife)</td></tr>
+<tr><td><b>ConnectionCredential</b></td><td>institution FK, <b>encrypted</b> token/secret, last_synced_at, status</td><td>Fernet-encrypted; never plain text</td></tr>
+<tr><td><b>Account</b></td><td>institution FK, name, type, external_id, current_balance, is_reconcilable, is_active</td><td><code>type</code> ∈ checking/savings/money_market/brokerage/401k/ira/hsa/pension/cash/credit_card</td></tr>
+<tr><td><b>Bucket</b></td><td>account FK, name, balance, target_amount?</td><td>Virtual envelope inside a real account (&sect;8)</td></tr>
+<tr><td><b>Transaction</b></td><td>account FK, date, amount(signed), payee, memo, category FK, <b>status</b>, <b>cleared</b>, source, external_id, transfer FK?, bucket FK?</td><td>status ∈ uncleared/imported/reconciled; source ∈ manual/imported</td></tr>
+<tr><td><b>Holding</b></td><td>account FK, symbol, description, quantity, price, market_value, as_of</td><td>Replaced each sync for investment accounts</td></tr>
+<tr><td><b>BalanceSnapshot</b></td><td>account FK, date, balance</td><td>One/account/day → net-worth charts</td></tr>
+<tr><td><b>Category</b></td><td>name, parent FK(self), is_active</td><td>Hierarchical; configurable (&sect;10)</td></tr>
+<tr><td><b>Transfer</b></td><td>from_txn, to_txn</td><td>Links the two sides of a money move</td></tr>
+<tr><td><b>SyncRun</b></td><td>institution FK, started/ended, counts, errors</td><td>Audit + UI status</td></tr>
+</tbody>
+</table>
+<div class="note"><b>Amounts:</b> use <code>DecimalField(max_digits=14, decimal_places=2)</code> everywhere — never floats for money. Signed amounts (negative = outflow) keep transfers and reconciliation math simple.</div>
+
+<!-- 8 -->
+<h2 id="buckets">8. Envelope / "dummy" sub-accounts</h2>
+<p>Your "dummy" accounts (Self/Wife allowances inside PSECU checking; the 10 sinking funds inside the
+Wealthfront Cash Account) are <b>virtual partitions of a real account's balance</b>, not separate bank
+accounts. Modeled as <code>Bucket</code> rows under their parent <code>Account</code>.</p>
+<div class="grid">
+  <div class="card"><h4>Behavior</h4><ul class="tight">
+    <li>Parent account's real balance = source of truth (from sync).</li>
+    <li>Each bucket holds an earmarked portion; sum of buckets ≤ parent balance.</li>
+    <li>An "unallocated" remainder = parent balance − Σ buckets is shown so nothing hides.</li>
+    <li>Moving money into/out of a bucket is an internal <b>allocation</b> (a Transaction tagged with a <code>bucket</code>, or a dedicated BucketTransfer) — it does <i>not</i> change the parent's real balance, only the split.</li>
+  </ul></div>
+  <div class="card"><h4>Example — Wealthfront Cash</h4>
+    <table style="font-size:13px">
+      <tr><th>Bucket</th><th>Balance</th></tr>
+      <tr><td>Vacation</td><td>$2,400</td></tr>
+      <tr><td>Insurance</td><td>$1,100</td></tr>
+      <tr><td>Tax: School</td><td>$3,000</td></tr>
+      <tr><td>… (7 more)</td><td>…</td></tr>
+      <tr><td><i>Unallocated</i></td><td><i>$X</i></td></tr>
+      <tr><th>Real balance (synced)</th><th>= total</th></tr>
+    </table>
+  </div>
+</div>
+<div class="note">This mirrors envelope budgeting (YNAB/Actual). When a real transaction hits the Cash
+Account from the bank, you assign it to a bucket during reconciliation — same gesture as assigning a category.</div>
+
+<!-- 9 -->
+<h2 id="reconcile">9. Receipt logging &amp; reconciliation</h2>
+<p>Your daily workflow, preserved: log receipts as you spend, then match incoming bank transactions.</p>
+<div class="card"><div class="ascii">
+  1. SPEND        → you log a receipt        → Transaction(source=manual, status=UNCLEARED)
+  2. DAILY SYNC   → bank txns pulled         → Transaction(source=imported, cleared=True)
+  3. MATCH ENGINE → pairs imported↔manual    → on match: manual.status=RECONCILED,
+                    (amount + date window +    drop the dup import (or merge memo/category)
+                     fuzzy payee)
+  4. REVIEW QUEUE → unmatched imports shown  → you categorize / assign bucket / confirm
+  5. RECONCILE    → per-account session       → assert running balance == bank balance
+</div></div>
+<h3>Matching rules</h3>
+<ul class="tight">
+  <li><b>Exact:</b> same account + amount + date within ±N days → auto-match candidate.</li>
+  <li><b>Fuzzy payee:</b> normalize merchant strings ("AMZN Mktp" ≈ "Amazon") to boost confidence.</li>
+  <li><b>Confidence threshold:</b> high → auto-reconcile; medium → suggest in UI; low → leave in review queue.</li>
+  <li>Never silently delete a manual entry — merge into it so your category/memo survive.</li>
+</ul>
+<h3>Reconciliation screen (Quicken-style register)</h3>
+<p>Per reconcilable account (Discover, PSECU checking): a register table with a "cleared" column, a
+target = bank statement balance, and a running difference that must hit $0. Matches vacation-planner's
+CBV + Bootstrap table style.</p>
+<p class="meta">Investment / retirement accounts skip all of this — they only get daily balance + holdings snapshots.</p>
+
+<!-- 10 -->
+<h2 id="categories">10. Categories</h2>
+<ul class="tight">
+  <li>Self-referential <code>Category</code>: a parent (Utilities) with children (Electric, Gas, Water).</li>
+  <li>Fully configurable in the UI / admin — add, rename, deactivate; pick from existing on each transaction.</li>
+  <li>Seed with a sensible default tree (mirror your current Quicken categories) via a data migration.</li>
+  <li>Optional auto-categorization: remember "payee X → category Y" so repeat merchants pre-fill.</li>
+  <li>Reports roll up by parent or drill into subcategory.</li>
+</ul>
+
+<!-- 11 -->
+<h2 id="reports">11. Reports</h2>
+<div class="grid">
+  <div class="card"><h4>Core (v1)</h4><ul class="tight">
+    <li>Net worth over time (from BalanceSnapshots).</li>
+    <li>Spending by category / subcategory, date range.</li>
+    <li>Account register + statement.</li>
+    <li>Bucket / sinking-fund status &amp; targets.</li>
+    <li>Income vs expense (cash flow).</li>
+  </ul></div>
+  <div class="card"><h4>Later</h4><ul class="tight">
+    <li>Investment allocation across all retirement accounts.</li>
+    <li>Budget vs actual.</li>
+    <li>Year-over-year category trends.</li>
+    <li>Tax-prep export (the Tax: buckets feed this).</li>
+  </ul></div>
+</div>
+
+<!-- 12 -->
+<h2 id="security">12. Security &amp; secrets</h2>
+<div class="danger"><b>This app holds your entire financial picture. Treat it accordingly.</b></div>
+<ul class="tight">
+  <li><b>Prefer no stored bank passwords</b> — SimpleFIN means you store only a read-only token. This is the single biggest security win and a reason to avoid scraping.</li>
+  <li><b>Encrypt all credentials/tokens at rest</b> with Fernet (cryptography lib). The Fernet key lives in a SealedSecret, injected as env var — never in the DB or git.</li>
+  <li><b>SealedSecrets</b> for everything sensitive (DB creds, SECRET_KEY, SimpleFIN token, Fernet key, AWS keys) — same pattern as vacation-planner.</li>
+  <li><b>Auth:</b> Google OAuth via allauth; restrict to your + wife's accounts; all querysets user-scoped (OwnerRequiredMixin pattern).</li>
+  <li><b>Network:</b> Cloudflare TLS termination, secure cookies, HSTS — copy vacation-planner settings.</li>
+  <li><b>Read-only posture:</b> the app never initiates money movement. No write access reduces worst-case blast radius to data exposure, not theft.</li>
+  <li><b>Backups encrypted</b> in transit/at rest; the S3 backup bucket already exists in your pattern.</li>
+  <li><b>Audit:</b> SyncRun + page logging middleware give you a trail of every data pull.</li>
+</ul>
+
+<!-- 13 -->
+<h2 id="deploy">13. Deployment (k8s)</h2>
+<p>Clone the vacation-planner manifests; rename to <code>money-tracker</code>.</p>
+<table>
+<thead><tr><th>Resource</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Namespace</td><td><code>money-tracker</code></td></tr>
+<tr><td>Deployment / Service</td><td><code>money-tracker</code>, LoadBalancer port 80 → 8000</td></tr>
+<tr><td>Image</td><td><code>jaysuzi5/money-tracker:latest</code> (multi-arch buildx)</td></tr>
+<tr><td>initContainer</td><td><code>manage.py migrate --no-input</code></td></tr>
+<tr><td>DATABASE_URL</td><td><code>postgres://$(USER):$(PW)@postgresql-rw.postgresql.svc.cluster.local:5432/money_tracker</code></td></tr>
+<tr><td>Hostname</td><td>e.g. <code>money.jaycurtis.org</code> (ALLOWED_HOSTS + CSRF_TRUSTED_ORIGINS)</td></tr>
+<tr><td>SealedSecret <code>money-tracker</code></td><td>secret_key, postgres_user, postgres_password, fernet_key, simplefin_token, (aws keys)</td></tr>
+<tr><td>CronJob: sync</td><td><code>0 6 * * *</code> → <code>manage.py sync_accounts</code></td></tr>
+<tr><td>CronJob: backup</td><td>reuse 3-tier pg_dump + S3 (local 6h / daily / monthly / yearly)</td></tr>
+<tr><td>OTEL</td><td><code>OTEL_SERVICE_NAME=money-tracker</code> → existing collector</td></tr>
+</tbody>
+</table>
+<p class="meta">DB bootstrap: create the <code>money_tracker</code> database + user on the PG cluster once before first deploy (same as you did for vacation_planner).</p>
+
+<!-- 14 -->
+<h2 id="roadmap">14. Phased roadmap</h2>
+<table>
+<thead><tr><th>Phase</th><th>Deliverable</th><th>Why first</th></tr></thead>
+<tbody>
+<tr><td><b>0. Spike</b></td><td>Create SimpleFIN account; verify all 5 institutions link &amp; return the detail you need.</td><td><span class="pill p-bad">Gating</span> — proves the whole concept before any build.</td></tr>
+<tr><td><b>1. Scaffold</b></td><td>Django app cloned from vacation-planner pattern; DB; auth; deploy skeleton to k8s.</td><td>Get the familiar shell running.</td></tr>
+<tr><td><b>2. Data model</b></td><td>Institutions, Accounts, Buckets, Transactions, Categories, Holdings, snapshots + admin.</td><td>Core schema + manual entry usable immediately.</td></tr>
+<tr><td><b>3. Manual register</b></td><td>Receipt entry, categories, transfers, buckets — usable even before sync.</td><td>Replaces Quicken's manual side day one.</td></tr>
+<tr><td><b>4. SimpleFIN connector</b></td><td>Connector + sync engine + daily CronJob + on-demand button + SyncRun UI.</td><td>The make-or-break automation.</td></tr>
+<tr><td><b>5. Reconciliation</b></td><td>Matcher + review queue + reconcile screen for Discover &amp; PSECU.</td><td>Your daily workflow.</td></tr>
+<tr><td><b>6. Reports</b></td><td>Net worth, spending-by-category, cash flow, bucket status.</td><td>The payoff — tailored reporting.</td></tr>
+<tr><td><b>7. Polish</b></td><td>Auto-categorization, PWA, backups, alerts on failed syncs.</td><td>Quality of life.</td></tr>
+<tr><td><b>8. Fallback connectors</b></td><td>Only if SimpleFIN gaps appear: Playwright scraper for a specific institution.</td><td>Contingency, not baseline.</td></tr>
+</tbody>
+</table>
+
+<!-- 15 -->
+<h2 id="questions">15. Decisions (locked 2026-06-26)</h2>
+<table>
+<thead><tr><th>#</th><th>Decision</th><th>Impact on build</th></tr></thead>
+<tbody>
+<tr><td class="qid">D1</td><td><b>SimpleFIN Bridge</b> = primary. Account live; PSECU, Discover, Wealthfront connected &amp; working. Both Fidelity logins added too.</td><td>Build SimpleFIN connector first.</td></tr>
+<tr><td class="qid">D2</td><td><b>Fidelity broken on SimpleFIN's provider</b> — error: "ongoing issues with Fidelity… connections may not work or data might not be correct… possibly for a few months." Configured anyway; will see if it works.</td><td>Fidelity = best-effort via SimpleFIN now; <b>Playwright scraper fallback</b> reserved for Fidelity only (Phase 8). Other 4 institutions need no scraper.</td></tr>
+<tr><td class="qid">D3</td><td><b>Single shared login, LAN-only.</b> Not exposed publicly.</td><td><span class="pill p-good">Simplifies</span> Drop Google OAuth/allauth + per-user scoping. Plain Django auth, one superuser. No Cloudflare; internal LoadBalancer + local DNS.</td></tr>
+<tr><td class="qid">D4</td><td><b>Import history from QIF.</b> Two Windows files: old (~4yr) + current. Format = <b>QIF</b> (plain text, platform-neutral). Duplicates &amp; differing categories expected.</td><td>Build a QIF importer (&sect;16) with dedup + category mapping. Reconcile accounts (Discover, PSECU checking) export to QIF cleanly; investment QIF may be partial from subscription-era Quicken — CSV backup option.</td></tr>
+<tr><td class="qid">D5</td><td><b>Hostname:</b> <code>money-tracker.jaycurtis.org</code> (LAN).</td><td>ALLOWED_HOSTS / Service.</td></tr>
+<tr><td class="qid">D6</td><td><b>Reconcile:</b> clear each transaction daily; also compare running cleared balance vs synced bank balance, flag mismatch.</td><td>Reconcile screen shows running cleared balance + synced balance diff; alert when ≠.</td></tr>
+<tr><td class="qid">D7</td><td><b>Skip PSECU money market</b> (generic "add account later" covers it). <b>Keep PSECU savings</b> (tiny required balance).</td><td>Seed only active accounts; account-create UI generic.</td></tr>
+</tbody>
+</table>
+
+<!-- 16 -->
+<h2 id="qif">16. Quicken QIF historical import</h2>
+<p>One-time (repeatable) importer for 20 years of history from two Windows Quicken QIF exports.</p>
+<h3>QIF format primer</h3>
+<ul class="tight">
+  <li>Plain text. Sections start with <code>!Type:Bank</code> / <code>!Type:CCard</code> / <code>!Type:Cash</code> / <code>!Type:Invst</code>; account list under <code>!Account</code>; categories under <code>!Type:Cat</code>.</li>
+  <li>Each txn = lines keyed by leading char, ended by <code>^</code>: <code>D</code>=date, <code>T</code>=amount, <code>P</code>=payee, <code>L</code>=category/transfer (<code>[Account]</code> = transfer), <code>M</code>=memo, <code>C</code>=cleared status, <code>S</code>/<code>E</code>/<code>$</code>=split lines.</li>
+  <li>Investment (<code>!Type:Invst</code>): <code>N</code>=action (Buy/Sell/Div), <code>Y</code>=security, <code>Q</code>=qty, <code>I</code>=price.</li>
+</ul>
+<h3>Importer design</h3>
+<pre>manage.py import_qif &lt;file.qif&gt; --institution &lt;name&gt; --account-map map.json [--dry-run]
+  parse QIF → sections
+  upsert Categories from !Type:Cat (merge old/new differing trees)
+  for each account section:
+     resolve/create Account (via --account-map: QIF acct name → our Account)
+     for each txn:
+        build NormTxn; L "[Acct]" → mark as Transfer
+        dedupe key = (account, date, amount, normalized_payee)   # old+new file overlap
+        if exists → skip (or update memo/category if richer); else insert source=imported_qif
+     splits → child category allocations
+  report: inserted / skipped-dup / unmapped-category / unmapped-account   # always print, dry-run first</pre>
+<ul class="tight">
+  <li><b>Dedup across the two files</b> on (account, date, amount, payee) so the overlapping period doesn't double up. <code>--dry-run</code> prints counts before committing.</li>
+  <li><b>Category reconciliation:</b> old and new Quicken may name categories differently — importer emits an "unmapped/uncertain" list; you map via a small JSON, re-run idempotently.</li>
+  <li><b>Account mapping:</b> QIF account names → your Account rows via <code>--account-map</code> JSON (handles renamed accounts across the 2 files).</li>
+  <li><b>Idempotent:</b> safe to re-run; dedup key prevents duplicates. Order: old file first, then current file.</li>
+  <li>Historical imports tagged <code>source=imported_qif</code> so they're distinguishable from live SimpleFIN data and never re-matched by the daily reconciler.</li>
+</ul>
+
+<hr>
+<p class="meta">Sources consulted: SimpleFIN Bridge &amp; protocol (simplefin.org), Actual Budget bank-sync
+docs (actualbudget.org), openbankingtracker.com (Plaid / Wealthfront / Fidelity coverage). Coverage
+for your specific institutions must be confirmed in Phase 0. Pattern reference: existing
+<code>vacation-planner</code> Django app on your k8s cluster.</p>
+<p class="meta">Review this draft and mark up &sect;15 (or anything else) — next step is to fold your
+answers in, then start Phase 0/1.</p>
+
+</div>
+</body>
+</html>

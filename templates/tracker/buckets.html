@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Buckets{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div><h1>Envelopes &amp; buckets</h1><div class="subtitle">Earmark portions of an account's balance for sinking funds and allowances.</div></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    {% for account in accounts %}
+      <div class="card mb-3 table-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-bank me-1"></i> {{ account.name }}</span>
+          <span class="small text-secondary">
+            Balance <span class="num fw-semibold">${{ account.current_balance|floatformat:2|intcomma }}</span> ·
+            Allocated <span class="num">${{ account.allocated_total|floatformat:2|intcomma }}</span> ·
+            Unallocated <span class="num {% if account.unallocated < 0 %}amount-neg{% endif %}">${{ account.unallocated|floatformat:2|intcomma }}</span>
+          </span>
+        </div>
+        <table class="table">
+          <thead><tr><th>Bucket</th><th class="text-end">Balance</th><th class="text-end">Target</th><th style="width:140px"></th></tr></thead>
+          <tbody>
+          {% for b in account.buckets.all %}
+            <tr>
+              <td>{{ b.name }}</td>
+              <td class="text-end num fw-semibold">${{ b.balance|floatformat:2|intcomma }}</td>
+              <td class="text-end num text-secondary">{% if b.target_amount %}${{ b.target_amount|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+              <td>
+                {% if b.target_amount %}
+                  <div class="progress" style="height:6px">
+                    <div class="progress-bar bg-success" style="width: {% widthratio b.balance b.target_amount 100 %}%"></div>
+                  </div>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% empty %}
+      <div class="card"><div class="card-body"><div class="empty-state">No buckets yet — create one on the right.</div></div></div>
+    {% endfor %}
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-plus-circle me-1"></i> Create bucket</div>
+      <div class="card-body">
+        <form method="post">{% csrf_token %}
+          {% for f in create_form %}<div class="mb-3"><label class="form-label">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
+          <button name="create_bucket" value="1" class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Create</button>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><i class="bi bi-arrow-left-right me-1"></i> Move money</div>
+      <div class="card-body">
+        <form method="post">{% csrf_token %}
+          {% for f in alloc_form %}<div class="mb-3"><label class="form-label">{{ f.label }}</label>{{ f }}{{ f.errors }}</div>{% endfor %}
+          <button name="allocate" value="1" class="btn btn-success w-100"><i class="bi bi-check-lg"></i> Apply</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

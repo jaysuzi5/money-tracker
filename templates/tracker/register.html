@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ account.name }}{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div>
+    <h1>{{ account.name }}</h1>
+    <div class="subtitle">{{ account.institution.name }} · <span class="badge type-badge">{{ account.get_type_display }}</span></div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary" href="{% url 'tracker:receipt_new' %}?account={{ account.id }}"><i class="bi bi-receipt"></i> Log receipt</a>
+    {% if account.is_reconcilable %}<a class="btn btn-outline-primary" href="{% url 'tracker:reconcile' account.id %}"><i class="bi bi-check2-square"></i> Reconcile</a>{% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card"><div class="label">Synced balance</div><div class="value num {% if account.current_balance < 0 %}neg{% else %}pos{% endif %}">${{ account.current_balance|floatformat:2|intcomma }}</div></div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card"><div class="label">Cleared balance</div><div class="value num">${{ account.cleared_balance|floatformat:2|intcomma }}</div></div>
+  </div>
+</div>
+
+<div class="card table-card">
+  <table class="table table-hover">
+    <thead><tr><th style="width:90px">Date</th><th style="width:285px">Payee</th><th style="width:400px">Category</th><th style="width:180px">Memo</th><th class="text-end">Amount</th><th>Status</th><th>Source</th><th></th></tr></thead>
+    <tbody>
+    {% for t in txns %}
+      <tr>
+        <td class="text-nowrap text-secondary">{{ t.date|date:"M j, Y" }}</td>
+        <td class="fw-semibold">{{ t.payee }}</td>
+        <td>{{ t.category|default:"—" }}{% if t.bucket %} <span class="badge type-badge">{{ t.bucket.name }}</span>{% endif %}</td>
+        <td class="small text-secondary">{{ t.memo }}</td>
+        <td class="text-end num {% if t.amount < 0 %}amount-neg{% else %}amount-pos{% endif %}">${{ t.amount|floatformat:2|intcomma }}</td>
+        <td><span class="badge status-{{ t.status }}">{{ t.get_status_display }}</span></td>
+        <td class="small text-secondary">{{ t.get_source_display }}</td>
+        <td class="text-end text-nowrap">
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'tracker:txn_edit' t.id %}"><i class="bi bi-pencil"></i></a>
+          {% if t.source == 'manual' %}
+          <form method="post" action="{% url 'tracker:txn_delete' t.id %}" class="d-inline m-0" onsubmit="return confirm('Delete?')">{% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8"><div class="empty-state">No transactions yet.</div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

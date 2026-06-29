@@ -1,0 +1,4 @@
+<select name="cat" class="form-select form-select-sm tsearch">
+  <option value="">— uncategorized —</option>
+  {% for c in categories %}<option value="{{ c.id }}" {% if selected == c.id %}selected{% endif %}>{{ c }}</option>{% endfor %}
+</select>

@@ -1,0 +1,240 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: money-tracker-backup
+  namespace: money-tracker
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# Local pg_dump every 6h, 7-day retention on the NFS PVC.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: money-tracker-backup-local
+  namespace: money-tracker
+spec:
+  schedule: "0 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: postgres:17
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: money-tracker
+                      key: POSTGRES_PASSWORD
+              volumeMounts:
+                - name: backup-vol
+                  mountPath: /backups
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  FILE="/backups/mt-$(date +%Y%m%d-%H%M%S).dump"
+                  pg_dump -h postgresql-rw.postgresql.svc.cluster.local -U money_tracker \
+                    -d money_tracker -F c -Z 9 -f "$FILE"
+                  find /backups -name "*.dump" -mtime +7 -delete
+          volumes:
+            - name: backup-vol
+              persistentVolumeClaim:
+                claimName: money-tracker-backup
+
+---
+# Daily portable export: write a QIF archive to the PVC (1:30am, before the S3 push).
+# Open format — re-importable into Quicken or this app even if the DB/schema is lost.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: money-tracker-qif-export
+  namespace: money-tracker
+spec:
+  schedule: "30 1 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: qif-export
+              image: jaysuzi5/money-tracker:latest
+              envFrom:
+                - secretRef:
+                    name: money-tracker
+              env:
+                - name: DJANGO_SETTINGS_MODULE
+                  value: "config.settings"
+                - name: DJANGO_ENV
+                  value: "production"
+                - name: DATABASE_URL
+                  value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgresql-rw.postgresql.svc.cluster.local:5432/money_tracker"
+              volumeMounts:
+                - name: backup-vol
+                  mountPath: /backups
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  uv run python manage.py export_qif --output "/backups/mt-$(date +%Y%m%d).qif"
+                  find /backups -name "*.qif" -mtime +14 -delete
+          volumes:
+            - name: backup-vol
+              persistentVolumeClaim:
+                claimName: money-tracker-backup
+
+---
+# Daily upload of latest dump to S3 (2am), 1-year typical lifecycle on the bucket.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: money-tracker-backup-cloud-daily
+  namespace: money-tracker
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: s3-upload
+              image: amazon/aws-cli:latest
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: money-tracker-s3
+                      key: aws_access_key_id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: money-tracker-s3
+                      key: aws_secret_access_key
+                - name: AWS_DEFAULT_REGION
+                  value: us-east-1
+              volumeMounts:
+                - name: backup-vol
+                  mountPath: /backups
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  LATEST=$(ls -t /backups/*.dump 2>/dev/null | head -1)
+                  [ -z "$LATEST" ] && exit 0
+                  PREFIX="money-tracker/backups/daily/$(date +%Y/%m/%d)"
+                  aws s3 cp "$LATEST" "s3://jay-curtis-backup/$PREFIX/$(basename $LATEST)" \
+                    --storage-class STANDARD_IA
+                  # portable open-format archive (QIF) alongside the dump
+                  QIF=$(ls -t /backups/*.qif 2>/dev/null | head -1)
+                  [ -n "$QIF" ] && aws s3 cp "$QIF" \
+                    "s3://jay-curtis-backup/money-tracker/exports/$(date +%Y/%m/%d)/$(basename $QIF)" \
+                    --storage-class STANDARD_IA
+          volumes:
+            - name: backup-vol
+              persistentVolumeClaim:
+                claimName: money-tracker-backup
+
+---
+# Monthly snapshot (1st, 3am).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: money-tracker-backup-cloud-monthly
+  namespace: money-tracker
+spec:
+  schedule: "0 3 1 * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: s3-upload
+              image: amazon/aws-cli:latest
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: money-tracker-s3
+                      key: aws_access_key_id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: money-tracker-s3
+                      key: aws_secret_access_key
+                - name: AWS_DEFAULT_REGION
+                  value: us-east-1
+              volumeMounts:
+                - name: backup-vol
+                  mountPath: /backups
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  LATEST=$(ls -t /backups/*.dump 2>/dev/null | head -1)
+                  [ -z "$LATEST" ] && exit 0
+                  PREFIX="money-tracker/backups/monthly/$(date +%Y/%m)"
+                  aws s3 cp "$LATEST" "s3://jay-curtis-backup/$PREFIX/$(basename $LATEST)" \
+                    --storage-class STANDARD_IA
+          volumes:
+            - name: backup-vol
+              persistentVolumeClaim:
+                claimName: money-tracker-backup
+
+---
+# Yearly snapshot (Jan 1, 4am).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: money-tracker-backup-cloud-yearly
+  namespace: money-tracker
+spec:
+  schedule: "0 4 1 1 *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: s3-upload
+              image: amazon/aws-cli:latest
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: money-tracker-s3
+                      key: aws_access_key_id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: money-tracker-s3
+                      key: aws_secret_access_key
+                - name: AWS_DEFAULT_REGION
+                  value: us-east-1
+              volumeMounts:
+                - name: backup-vol
+                  mountPath: /backups
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  LATEST=$(ls -t /backups/*.dump 2>/dev/null | head -1)
+                  [ -z "$LATEST" ] && exit 0
+                  PREFIX="money-tracker/backups/yearly/$(date +%Y)"
+                  aws s3 cp "$LATEST" "s3://jay-curtis-backup/$PREFIX/$(basename $LATEST)" \
+                    --storage-class STANDARD_IA
+          volumes:
+            - name: backup-vol
+              persistentVolumeClaim:
+                claimName: money-tracker-backup

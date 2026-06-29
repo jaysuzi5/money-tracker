@@ -1,0 +1,27 @@
+# secrets / env
+.env
+*.env
+k8s/sealed-secret.yaml
+k8s/s3-sealed-secret.yaml
+k8s/*sealed*.yaml
+
+# python
+*.pyc
+__pycache__/
+.venv/
+.ruff_cache/
+
+# django
+db.sqlite3
+staticfiles/
+media/
+
+# financial data exports / imports (never commit real data)
+*.qif
+*.qdf
+*.qxf
+*.csv
+*.dump
+
+# os
+.DS_Store

@@ -1,0 +1,45 @@
+from django.urls import path
+
+from . import views
+
+app_name = 'tracker'
+
+urlpatterns = [
+    path('', views.dashboard, name='dashboard'),
+    path('sync/', views.run_sync_now, name='sync_now'),
+    path('account/<int:account_id>/', views.account_register, name='register'),
+    path('account/<int:account_id>/edit/', views.account_edit, name='account_edit'),
+    path('account/<int:account_id>/reconcile/', views.reconcile, name='reconcile'),
+    path('txn/<int:txn_id>/toggle-clear/', views.toggle_clear, name='toggle_clear'),
+    path('txn/<int:txn_id>/review/', views.txn_review, name='txn_review'),
+    path('review/', views.review_queue, name='review_queue'),
+    path('review/match/', views.match_pair, name='match_pair'),
+    path('review/accept/<int:txn_id>/', views.accept_import, name='accept_import'),
+    path('account/<int:account_id>/add/', views.txn_add, name='txn_add'),
+    path('receipt/new/', views.receipt_new, name='receipt_new'),
+    path('txn/<int:txn_id>/edit/', views.txn_edit, name='txn_edit'),
+    path('txn/<int:txn_id>/update/', views.txn_update, name='txn_update'),
+    path('txn/<int:txn_id>/delete/', views.txn_delete, name='txn_delete'),
+    path('txn/<int:txn_id>/split/', views.split_edit, name='split_edit'),
+    path('transfer/new/', views.transfer_new, name='transfer_new'),
+    path('property/add/', views.property_add, name='property_add'),
+    path('property/<int:account_id>/entry/', views.property_entry_add, name='property_entry_add'),
+    path('pentry/<int:entry_id>/update/', views.property_entry_update, name='property_entry_update'),
+    path('pentry/<int:entry_id>/delete/', views.property_entry_delete, name='property_entry_delete'),
+    path('bucket/<int:bucket_id>/add/', views.bucket_entry_add, name='bucket_entry_add'),
+    path('entry/<int:entry_id>/update/', views.bucket_entry_update, name='bucket_entry_update'),
+    path('entry/<int:entry_id>/delete/', views.bucket_entry_delete, name='bucket_entry_delete'),
+    path('buckets/', views.buckets, name='buckets'),
+    path('categories/', views.categories, name='categories'),
+    path('categories/uncategorized/', views.uncategorized_summary, name='uncategorized_summary'),
+    path('categories/bulk/', views.bulk_categorize, name='bulk_categorize'),
+    path('categories/move-transfers/', views.move_transfers, name='move_transfers'),
+    path('categories/<int:pk>/', views.category_summary, name='category_summary'),
+    path('categories/<int:pk>/edit/', views.category_edit, name='category_edit'),
+    path('categories/<int:pk>/delete/', views.category_delete, name='category_delete'),
+    path('reports/', views.reports, name='reports'),
+    path('reports/categories/', views.report_categories, name='report_categories'),
+    path('restore/qif/', views.restore_qif, name='restore_qif'),
+    path('export/qif/', views.export_qif, name='export_qif_all'),
+    path('export/qif/<int:account_id>/', views.export_qif, name='export_qif'),
+]

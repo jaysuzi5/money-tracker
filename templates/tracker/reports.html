@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div class="d-flex align-items-center gap-3">
+    <h1 class="m-0">Reports</h1>
+    <a href="{% url 'tracker:report_categories' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-columns"></i> Category report</a>
+  </div>
+  <form method="get" class="d-flex align-items-center gap-2">
+    <label class="small text-secondary">Range (days)</label>
+    <select name="days" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+      <option value="30" {% if days == 30 %}selected{% endif %}>30</option>
+      <option value="90" {% if days == 90 %}selected{% endif %}>90</option>
+      <option value="180" {% if days == 180 %}selected{% endif %}>180</option>
+      <option value="365" {% if days == 365 %}selected{% endif %}>365</option>
+    </select>
+  </form>
+</div>
+
+<div class="row">
+  <div class="col-md-6 mb-4">
+    <div class="card"><div class="card-body">
+      <h6>Net worth over time</h6>
+      <canvas id="nwChart" height="160"></canvas>
+    </div></div>
+  </div>
+  <div class="col-md-6 mb-4">
+    <div class="card"><div class="card-body">
+      <h6>Cash flow by month</h6>
+      <canvas id="cfChart" height="160"></canvas>
+    </div></div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6 mb-4">
+    <div class="card"><div class="card-body">
+      <h6>Spending by category <span class="text-secondary small">(last {{ days }} days, total ${{ spending_total|floatformat:2|intcomma }})</span></h6>
+      <table class="table table-sm m-0">
+        <tbody>
+        {% for name, amt in spending %}
+          <tr><td>{{ name }}</td><td class="text-end">${{ amt|floatformat:2|intcomma }}</td></tr>
+        {% empty %}
+          <tr><td class="text-secondary">No spending in range.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div></div>
+  </div>
+  <div class="col-md-6 mb-4">
+    <div class="card"><div class="card-body">
+      <h6>Bucket / sinking-fund status</h6>
+      <table class="table table-sm m-0">
+        <thead><tr><th>Account</th><th>Bucket</th><th class="text-end">Balance</th><th class="text-end">Target</th></tr></thead>
+        <tbody>
+        {% for b in bucket_rows %}
+          <tr><td class="small">{{ b.account.name }}</td><td>{{ b.name }}</td>
+              <td class="text-end">${{ b.balance|floatformat:2|intcomma }}</td>
+              <td class="text-end text-secondary">{% if b.target_amount %}${{ b.target_amount|floatformat:2|intcomma }}{% else %}—{% endif %}</td></tr>
+        {% empty %}
+          <tr><td colspan="4" class="text-secondary">No buckets.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{{ networth|json_script:"nw-data" }}
+{{ cashflow|json_script:"cf-data" }}
+<script>
+  const nw = JSON.parse(document.getElementById('nw-data').textContent);
+  const cf = JSON.parse(document.getElementById('cf-data').textContent);
+  new Chart(document.getElementById('nwChart'), {
+    type: 'line',
+    data: {labels: nw.labels, datasets: [{label: 'Net worth', data: nw.values, tension: .2, borderColor: '#4aa3ff'}]},
+    options: {plugins: {legend: {display: false}}}
+  });
+  new Chart(document.getElementById('cfChart'), {
+    type: 'bar',
+    data: {labels: cf.labels, datasets: [
+      {label: 'Income', data: cf.income, backgroundColor: '#3fb950'},
+      {label: 'Expense', data: cf.expense, backgroundColor: '#f85149'}]},
+  });
+</script>
+{% endblock %}

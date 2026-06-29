@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Restore from QIF{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="mt-page-header"><h1>Restore / import from QIF</h1></div>
+    <div class="card">
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">{% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">QIF file</label>
+            <input type="file" name="qif" accept=".qif" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Institution name</label>
+            <input name="institution" list="inst-list" class="form-control" placeholder="e.g. PSECU" required>
+            <datalist id="inst-list">{% for i in institutions %}<option value="{{ i.name }}">{% endfor %}</datalist>
+            <div class="form-text">Discovered accounts in the QIF are attached to this institution. Existing accounts (matched by name) are reused.</div>
+          </div>
+          <div class="form-check mb-3">
+            <input type="checkbox" name="dry_run" id="dry" class="form-check-input" checked>
+            <label class="form-check-label" for="dry">Dry run first (preview counts, change nothing)</label>
+          </div>
+          <button class="btn btn-primary"><i class="bi bi-upload"></i> Process QIF</button>
+          <a href="{% url 'tracker:dashboard' %}" class="btn btn-light">Cancel</a>
+        </form>
+        {% if result %}
+          <hr>
+          <h6>Result</h6>
+          <pre class="bg-body-tertiary p-3 rounded">{{ result }}</pre>
+          <p class="form-text">Idempotent + deduped on (account, date, amount, payee). Uncheck dry run to commit.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{% if is_uncategorized %}Uncategorized{% else %}{{ cat }}{% endif %}{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div>
+    <h1>{% if is_uncategorized %}<i class="bi bi-question-circle text-warning"></i> Uncategorized{% else %}{{ cat }}{% endif %}</h1>
+    <div class="subtitle">{{ count }} transaction{{ count|pluralize }}{% if not is_uncategorized %} (incl. subcategories &amp; split lines){% endif %}</div>
+  </div>
+  <a href="{% url 'tracker:categories' %}" class="btn btn-light"><i class="bi bi-arrow-left"></i> Categories</a>
+</div>
+
+{% if not is_uncategorized %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="post" action="{% url 'tracker:category_edit' cat.id %}" class="row g-2 align-items-end">{% csrf_token %}
+      <div class="col-auto"><label class="form-label">Rename / re-parent this category</label></div>
+      {% for f in edit_form %}<div class="col-auto"><div class="small text-secondary">{{ f.label }}</div>{{ f }}</div>{% endfor %}
+      <div class="col-auto"><button class="btn btn-outline-primary"><i class="bi bi-check-lg"></i> Save</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if is_uncategorized %}
+<div class="card mb-3 border-info">
+  <div class="card-body py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <span><i class="bi bi-arrow-left-right text-info me-1"></i> Auto-file transfers: move all <strong>“Transfer …”</strong> and card-payment rows into a <strong>Transfer</strong> category.</span>
+    <form method="post" action="{% url 'tracker:move_transfers' %}" class="m-0"
+          onsubmit="return confirm('Move all transfer/card-payment rows to the Transfer category?')">{% csrf_token %}
+      <button class="btn btn-sm btn-info"><i class="bi bi-magic"></i> Move transfers</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" style="max-width:280px" placeholder="Search payee or memo…">
+      <select name="range" class="form-select form-select-sm" style="width:auto">
+        <option value="3m" {% if range_filter == '3m' %}selected{% endif %}>Last 3 months</option>
+        <option value="all" {% if range_filter == 'all' %}selected{% endif %}>All dates</option>
+      </select>
+      <button class="btn btn-sm btn-outline-primary"><i class="bi bi-search"></i> Filter</button>
+      {% if q or range_filter == 'all' %}<a href="?" class="btn btn-sm btn-light">Clear</a>{% endif %}
+      <span class="text-secondary small ms-auto">{{ count }} shown</span>
+    </form>
+  </div>
+</div>
+
+<form method="post" action="{% url 'tracker:bulk_categorize' %}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <input type="hidden" name="source_category" value="{{ source_category_id }}">
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+      <span><i class="bi bi-arrows-move me-1"></i> Bulk move selected to:</span>
+      <select name="target_category" class="form-select form-select-sm tsearch" style="min-width:240px">
+        <option value="">— remove category (uncategorized) —</option>
+        {% for c in all_categories %}<option value="{{ c.id }}">{{ c }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-sm btn-primary">Apply to selected</button>
+      <span class="text-secondary small ms-auto"><label><input type="checkbox" id="selall"> select all</label></span>
+    </div>
+    <table class="table table-hover m-0">
+      <thead><tr>
+        <th style="width:36px"></th>
+        <th style="width:90px"><a class="qk-sort" href="{{ qbase }}&sort=date&dir={% if sort == 'date' and dir == 'asc' %}desc{% else %}asc{% endif %}">Date{% if sort == 'date' %}<i class="bi bi-caret-{% if dir == 'asc' %}up{% else %}down{% endif %}-fill ms-1"></i>{% endif %}</a></th>
+        <th style="width:140px"><a class="qk-sort" href="{{ qbase }}&sort=account&dir={% if sort == 'account' and dir == 'asc' %}desc{% else %}asc{% endif %}">Account{% if sort == 'account' %}<i class="bi bi-caret-{% if dir == 'asc' %}up{% else %}down{% endif %}-fill ms-1"></i>{% endif %}</a></th>
+        <th style="width:285px"><a class="qk-sort" href="{{ qbase }}&sort=payee&dir={% if sort == 'payee' and dir == 'asc' %}desc{% else %}asc{% endif %}">Payee{% if sort == 'payee' %}<i class="bi bi-caret-{% if dir == 'asc' %}up{% else %}down{% endif %}-fill ms-1"></i>{% endif %}</a></th>
+        <th class="text-end" style="width:120px"><a class="qk-sort" href="{{ qbase }}&sort=amount&dir={% if sort == 'amount' and dir == 'asc' %}desc{% else %}asc{% endif %}">Amount{% if sort == 'amount' %}<i class="bi bi-caret-{% if dir == 'asc' %}up{% else %}down{% endif %}-fill ms-1"></i>{% endif %}</a></th>
+        <th style="width:375px"><a class="qk-sort" href="{{ qbase }}&sort=category&dir={% if sort == 'category' and dir == 'asc' %}desc{% else %}asc{% endif %}">Category{% if sort == 'category' %}<i class="bi bi-caret-{% if dir == 'asc' %}up{% else %}down{% endif %}-fill ms-1"></i>{% endif %}</a></th>
+        <th style="width:180px"><a class="qk-sort" href="{{ qbase }}&sort=memo&dir={% if sort == 'memo' and dir == 'asc' %}desc{% else %}asc{% endif %}">Memo{% if sort == 'memo' %}<i class="bi bi-caret-{% if dir == 'asc' %}up{% else %}down{% endif %}-fill ms-1"></i>{% endif %}</a></th>
+      </tr></thead>
+      <tbody>
+      {% for t in txns %}
+        <tr>
+          <td><input type="checkbox" class="rowchk form-check-input" name="txn" value="{{ t.id }}"></td>
+          <td class="text-nowrap text-secondary">{{ t.date|date:"m/d/y" }}</td>
+          <td class="small"><a href="{% url 'tracker:dashboard' %}?account={{ t.account_id }}&range={{ range_filter|default:'all' }}">{{ t.account.name }}</a></td>
+          <td class="fw-semibold">{{ t.payee }}</td>
+          <td class="text-end num {% if t.amount < 0 %}amount-neg{% else %}amount-pos{% endif %}">${{ t.amount|floatformat:2|intcomma }}</td>
+          <td class="small">{% if t.splits.all %}<span class="text-primary">— Split —</span>{% else %}{{ t.category|default:"—" }}{% endif %}</td>
+          <td class="small text-secondary">{{ t.memo }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7"><div class="empty-state">No transactions.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('selall').addEventListener('change', e => {
+    document.querySelectorAll('.rowchk').forEach(c => c.checked = e.target.checked);
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,99 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: money-tracker
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: money-tracker
+  namespace: money-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: money-tracker
+  template:
+    metadata:
+      labels:
+        app: money-tracker
+    spec:
+      initContainers:
+        - name: migrate
+          image: jaysuzi5/money-tracker:latest
+          command: ["uv", "run", "python", "manage.py", "migrate", "--no-input"]
+          envFrom:
+            - secretRef:
+                name: money-tracker
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: "config.settings"
+            - name: DJANGO_ENV
+              value: "production"
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgresql-rw.postgresql.svc.cluster.local:5432/money_tracker"
+      containers:
+        - name: money-tracker
+          image: jaysuzi5/money-tracker:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: money-tracker
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: "config.settings"
+            - name: DJANGO_ENV
+              value: "production"
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgresql-rw.postgresql.svc.cluster.local:5432/money_tracker"
+            - name: ALLOWED_HOSTS
+              value: "money-tracker.home.arpa"
+            - name: CSRF_TRUSTED_ORIGINS
+              value: "http://money-tracker.home.arpa"
+            - name: OTEL_SERVICE_NAME
+              value: "money-tracker"
+            - name: OTLP_ENDPOINT
+              value: "http://otel-collector-collector.monitoring.svc.cluster.local:4318"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: money-tracker
+  namespace: money-tracker
+spec:
+  type: ClusterIP
+  selector:
+    app: money-tracker
+  ports:
+    - port: 8000
+      targetPort: 8000
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: money-tracker-ingress
+  namespace: money-tracker
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: money-tracker.home.arpa
+      http:
+        paths:
+          - backend:
+              service:
+                name: money-tracker
+                port:
+                  number: 8000
+            path: /
+            pathType: Prefix

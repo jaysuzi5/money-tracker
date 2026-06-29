@@ -1,0 +1,30 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: money-tracker-sync
+  namespace: money-tracker
+spec:
+  schedule: "0 6 * * *"          # daily 06:00
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: jaysuzi5/money-tracker:latest
+              command: ["uv", "run", "python", "manage.py", "sync_accounts", "--since-days", "14"]
+              envFrom:
+                - secretRef:
+                    name: money-tracker
+              env:
+                - name: DJANGO_SETTINGS_MODULE
+                  value: "config.settings"
+                - name: DJANGO_ENV
+                  value: "production"
+                - name: DATABASE_URL
+                  value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgresql-rw.postgresql.svc.cluster.local:5432/money_tracker"
