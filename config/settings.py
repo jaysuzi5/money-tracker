@@ -119,8 +119,10 @@ LOGGING = {
 # LAN-only deployment: no public TLS termination. Keep cookies non-secure for plain http
 # on the internal network; flip these via env if fronted by a TLS proxy later.
 if os.getenv('DJANGO_ENV') == 'production':
-    SESSION_COOKIE_SECURE = env.bool('COOKIE_SECURE', default=False)
-    CSRF_COOKIE_SECURE = env.bool('COOKIE_SECURE', default=False)
+    # ingress-nginx terminates TLS and forwards X-Forwarded-Proto
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = env.bool('COOKIE_SECURE', default=True)
+    CSRF_COOKIE_SECURE = env.bool('COOKIE_SECURE', default=True)
 
 OTEL_SERVICE_NAME = env('OTEL_SERVICE_NAME', default='money-tracker')
 OTLP_ENDPOINT = env('OTLP_ENDPOINT', default='')

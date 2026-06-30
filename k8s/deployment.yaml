@@ -52,7 +52,7 @@ spec:
             - name: ALLOWED_HOSTS
               value: "money-tracker.home.arpa"
             - name: CSRF_TRUSTED_ORIGINS
-              value: "http://money-tracker.home.arpa"
+              value: "https://money-tracker.home.arpa,http://money-tracker.home.arpa"
             - name: OTEL_SERVICE_NAME
               value: "money-tracker"
             - name: OTLP_ENDPOINT
@@ -86,6 +86,10 @@ metadata:
   namespace: money-tracker
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - money-tracker.home.arpa
+      secretName: money-tracker-tls
   rules:
     - host: money-tracker.home.arpa
       http:
