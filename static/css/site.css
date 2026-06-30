@@ -364,12 +364,16 @@ table.qk-table .num { text-align: right; font-variant-numeric: tabular-nums; whi
 ::selection { background: rgba(14,159,110,.18); }
 
 /* portfolio tax-treatment card accents */
-.stat-card.tt-pretax  { border-top:3px solid #7c3aed; }
-.stat-card.tt-roth    { border-top:3px solid #2563eb; }
-.stat-card.tt-pension { border-top:3px solid #d97706; }
-.stat-card.tt-hsa     { border-top:3px solid #0e9f6e; }
-.stat-card.tt-taxable { border-top:3px solid #eab308; }
-.stat-card.tt-cash    { border-top:3px solid #64748b; }
+.stat-card.tt-pretax  { --tt:#7c3aed; }
+.stat-card.tt-roth    { --tt:#2563eb; }
+.stat-card.tt-pension { --tt:#d97706; }
+.stat-card.tt-hsa     { --tt:#0e9f6e; }
+.stat-card.tt-taxable { --tt:#eab308; }
+.stat-card.tt-cash    { --tt:#64748b; }
+.stat-card[class*="tt-"] {
+  border: 4px solid var(--tt);
+}
+.stat-card[class*="tt-"] .label { color: var(--tt); font-weight: 700; }
 
 /* ===== Dark mode ===== */
 [data-theme="dark"] {
