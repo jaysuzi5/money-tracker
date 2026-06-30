@@ -196,9 +196,19 @@ def dashboard(request):
                 'difference': account.online_balance - local_total,
             }
 
+        # payee autocomplete: distinct payees + each payee's most-recent category
+        payee_cats = {}
+        for row in (Transaction.objects.exclude(payee='').filter(category__isnull=False)
+                    .order_by('-date', '-id').values('payee', 'category_id')):
+            payee_cats.setdefault(row['payee'], row['category_id'])
+        payees = list(Transaction.objects.exclude(payee='')
+                      .values_list('payee', flat=True).distinct().order_by('payee'))
+
         ctx.update({
             'account': account,
             'txns': txns,
+            'payees': payees,
+            'payee_cats': payee_cats,
             'categories': Category.objects.filter(is_active=True).select_related('parent'),
             'status_filter': status,
             'type_filter': ttype,
@@ -238,6 +248,16 @@ def _bucket_redirect(bucket_id):
 
 def _parse_amount(raw):
     return Decimal((raw or '').replace(',', '').strip())
+
+
+def _signed_amount(raw):
+    """Default to negative (expense). Bare '50' -> -50; '+50' -> 50; '-50' -> -50."""
+    raw = (raw or '').replace(',', '').replace('$', '').strip()
+    if raw.startswith('+'):
+        return Decimal(raw[1:])
+    if raw.startswith('-'):
+        return Decimal(raw)
+    return -Decimal(raw)
 
 
 def _recompute_available(account):
@@ -398,7 +418,7 @@ def bucket_entry_delete(request, entry_id):
 def txn_add(request, account_id):
     account = get_object_or_404(Account, pk=account_id)
     try:
-        amount = Decimal(request.POST.get('amount', '').replace(',', '').strip())
+        amount = _signed_amount(request.POST.get('amount'))
     except (InvalidOperation, AttributeError):
         messages.error(request, 'Invalid amount.')
         return _account_redirect(account.id)
@@ -574,7 +594,7 @@ def txn_update(request, txn_id):
         messages.error(request, 'Split transaction — use Split to edit its lines.')
         return _account_redirect(txn.account_id)
     try:
-        amount = Decimal(request.POST.get('amount', '').replace(',', '').strip())
+        amount = _signed_amount(request.POST.get('amount'))
     except InvalidOperation:
         messages.error(request, 'Invalid amount.')
         return _account_redirect(txn.account_id)

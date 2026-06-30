@@ -206,6 +206,8 @@
       </form>
 
       <form method="post" action="{% url 'tracker:txn_add' account.id %}" id="addform">{% csrf_token %}</form>
+      <datalist id="payee-list">{% for p in payees %}<option value="{{ p }}"></option>{% endfor %}</datalist>
+      {{ payee_cats|json_script:"payee-cats" }}
 
       <div class="qk-register">
         <table class="qk-table">
@@ -213,7 +215,7 @@
             <tr>
               {% include 'tracker/_sorth.html' with col='date' label='Date' width='90px' %}
               {% include 'tracker/_sorth.html' with col='payee' label='Payee' width='285px' %}
-              {% include 'tracker/_sorth.html' with col='category' label='Category' width='400px' %}
+              {% include 'tracker/_sorth.html' with col='category' label='Category' width='300px' %}
               {% include 'tracker/_sorth.html' with col='cl' label='CL' width='50px' center=1 %}
               {% include 'tracker/_sorth.html' with col='amount' label='Amount' width='130px' num=1 %}
               {% include 'tracker/_sorth.html' with col='balance' label='Balance' width='130px' num=1 %}
@@ -262,17 +264,17 @@
             <!-- inline add row (bottom, Quicken-style) -->
             <tr class="qk-addrow">
               <td><input form="addform" type="date" name="date" class="form-control form-control-sm" value="{{ today|date:'Y-m-d' }}" required></td>
-              <td><input form="addform" id="addform-payee" type="text" name="payee" class="form-control form-control-sm" placeholder="Payee"></td>
+              <td><input form="addform" id="addform-payee" list="payee-list" autocomplete="off" type="text" name="payee" class="form-control form-control-sm" placeholder="Payee"></td>
               <td>
-                <select form="addform" name="category" class="form-select form-select-sm tsearch">
+                <select form="addform" id="addform-cat" name="category" class="form-select form-select-sm tsearch">
                   <option value="">— category —</option>
                   {% for c in categories %}<option value="{{ c.id }}">{{ c }}</option>{% endfor %}
                 </select>
               </td>
               <td></td>
-              <td><input form="addform" type="text" name="amount" class="form-control form-control-sm num" placeholder="-0.00" required></td>
+              <td><input form="addform" type="text" name="amount" class="form-control form-control-sm num" placeholder="0.00 (− unless +)" required></td>
               <td></td>
-              <td class="d-flex gap-1"><input form="addform" type="text" name="memo" class="form-control form-control-sm" placeholder="Memo"><button form="addform" class="btn btn-sm btn-primary py-0" title="Add (negative = expense)"><i class="bi bi-plus-lg"></i></button></td>
+              <td class="d-flex gap-1"><input form="addform" type="text" name="memo" class="form-control form-control-sm" placeholder="Memo"><button form="addform" class="btn btn-sm btn-primary py-0" title="Add (amount negative unless prefixed with +)"><i class="bi bi-plus-lg"></i></button></td>
             </tr>
           </tbody>
         </table>
@@ -400,6 +402,17 @@
     f.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="' + CSRF + '">';
     document.body.appendChild(f); f.submit();
   };
+
+  // payee type-ahead: on selecting a known payee, auto-fill its last category
+  const payeeMap = JSON.parse(document.getElementById('payee-cats').textContent || '{}');
+  const pIn = document.getElementById('addform-payee'), catSel = document.getElementById('addform-cat');
+  function applyPayee() {
+    const cid = payeeMap[pIn.value];
+    if (cid == null) return;
+    if (catSel.tomselect) catSel.tomselect.setValue(String(cid), true);
+    else catSel.value = String(cid);
+  }
+  if (pIn) { pIn.addEventListener('input', applyPayee); pIn.addEventListener('change', applyPayee); }
 
   // auto-scroll to the latest (bottom) transactions on open
   const mainEl = document.querySelector('.qk-main');
