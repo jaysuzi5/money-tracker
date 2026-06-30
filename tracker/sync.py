@@ -97,11 +97,8 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
                       'source': TxnSource.SIMPLEFIN, 'is_new': True})
         if created:
             added += 1
-        # flip processing->posted (or back) on re-sync; never touch a locked (reconciled) row
-        elif (obj.source == TxnSource.SIMPLEFIN and obj.status != TxnStatus.RECONCILED
-              and obj.status != new_status):
-            obj.status = new_status
-            obj.save(update_fields=['status'])
+        # existing rows keep their status (you control clearing of in-flight/processing items;
+        # SimpleFIN's pending flag is unreliable for some providers e.g. Discover)
 
     matched = 0
     for acct in by_ext.values():
