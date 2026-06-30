@@ -349,6 +349,20 @@ class PortfolioSnapshot(models.Model):
         return f'{self.account.name} {self.snapshot_date} {self.balance}'
 
 
+class NetWorthSnapshot(models.Model):
+    """Point-in-time total net worth across all accounts. One row per date."""
+    snapshot_date = models.DateField(unique=True)
+    net_worth = models.DecimalField(max_digits=15, decimal_places=2)
+    notes = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-snapshot_date']
+
+    def __str__(self):
+        return f'{self.snapshot_date} {self.net_worth}'
+
+
 class SyncRun(models.Model):
     institution = models.ForeignKey(
         Institution, null=True, blank=True, on_delete=models.SET_NULL, related_name='sync_runs'

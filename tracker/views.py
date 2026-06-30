@@ -1,5 +1,5 @@
 from collections import OrderedDict, defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 
@@ -971,6 +971,7 @@ TAX_META = {
     'cash': ('Cash / savings', 'tt-cash'),
 }
 DRAWDOWN_MONTHLY = Decimal('4583')  # ~$55k/yr reference drawdown
+RETIREMENT_DATE = date(2026, 4, 16)
 
 
 @login_required
@@ -1013,16 +1014,26 @@ def portfolio(request):
             if s['snapshot_date'] <= d:
                 latest[s['account_id']] = s['balance']
         series.append({'date': d.isoformat(), 'balance': float(sum(latest.values(), Decimal('0')))})
-    # $X/mo linear drawdown reference line, anchored at the first point
-    if series:
-        base = series[0]['balance']
-        for i, pt in enumerate(series):
-            pt['draw'] = max(0.0, base - float(DRAWDOWN_MONTHLY) * i)
+
+    # drawdown reference: flat until retirement, then linear $DRAWDOWN_MONTHLY/mo to $0
+    anchor_map = {}
+    for s in snaps:
+        if s['snapshot_date'] <= RETIREMENT_DATE:
+            anchor_map[s['account_id']] = s['balance']
+    anchor = float(sum(anchor_map.values(), Decimal('0'))) or (series[-1]['balance'] if series else 0.0)
+    draw = []
+    if anchor > 0:
+        months_to_zero = anchor / float(DRAWDOWN_MONTHLY)
+        zero_date = RETIREMENT_DATE + timedelta(days=int(months_to_zero * 30.44))
+        first_date = series[0]['date'] if series else RETIREMENT_DATE.isoformat()
+        draw = [{'date': first_date, 'balance': anchor},
+                {'date': RETIREMENT_DATE.isoformat(), 'balance': anchor},
+                {'date': zero_date.isoformat(), 'balance': 0.0}]
 
     return render(request, 'tracker/portfolio.html', {
         'total': total, 'tax_rows': tax_rows, 'type_rows': type_rows,
-        'rows': rows, 'chart': series, 'today': timezone.now().date(),
-        'draw_monthly': DRAWDOWN_MONTHLY,
+        'rows': rows, 'chart': series, 'draw': draw, 'today': timezone.now().date(),
+        'draw_monthly': DRAWDOWN_MONTHLY, 'retirement': RETIREMENT_DATE,
     })
 
 
@@ -1051,6 +1062,78 @@ def portfolio_snapshot(request):
         n += 1
     messages.success(request, f'Captured snapshot for {n} accounts on {d}.')
     return redirect(reverse('tracker:portfolio'))
+
+
+@login_required
+def networth(request):
+    from .models import NetWorthSnapshot
+    snaps = list(NetWorthSnapshot.objects.order_by('snapshot_date'))
+    rows = []
+    prev = None
+    for s in snaps:
+        change = (s.net_worth - prev.net_worth) if prev else None
+        pct = (float(change) / float(prev.net_worth) * 100) if prev and prev.net_worth else None
+        rows.append({'s': s, 'change': change, 'pct': pct})
+        prev = s
+    chart = [{'date': s.snapshot_date.isoformat(), 'net_worth': float(s.net_worth)} for s in snaps]
+    rows.reverse()
+
+    latest = snaps[-1] if snaps else None
+    oldest = snaps[0] if snaps else None
+    total_change = (latest.net_worth - oldest.net_worth) if latest and oldest else None
+    total_pct = (float(total_change) / float(oldest.net_worth) * 100) if total_change and oldest.net_worth else None
+    cur_year = timezone.now().year
+    yr = [s for s in snaps if s.snapshot_date.year == cur_year]
+    ytd_change = (yr[-1].net_worth - yr[0].net_worth) if len(yr) >= 2 else None
+    ytd_pct = (float(ytd_change) / float(yr[0].net_worth) * 100) if ytd_change and yr[0].net_worth else None
+
+    _, current_nw, _ = _grouped_accounts()
+    return render(request, 'tracker/networth.html', {
+        'rows': rows, 'chart': chart, 'latest': latest, 'count': len(snaps),
+        'total_change': total_change, 'total_pct': total_pct,
+        'ytd_change': ytd_change, 'ytd_pct': ytd_pct, 'cur_year': cur_year,
+        'current_nw': current_nw, 'today': timezone.now().date(),
+    })
+
+
+@login_required
+@require_POST
+def networth_capture(request):
+    from .models import NetWorthSnapshot
+    d = request.POST.get('date') or timezone.now().date()
+    _, current_nw, _ = _grouped_accounts()
+    NetWorthSnapshot.objects.update_or_create(
+        snapshot_date=d,
+        defaults={'net_worth': current_nw, 'notes': request.POST.get('notes', '')})
+    messages.success(request, f'Captured net worth ${current_nw:,.2f} for {d}.')
+    return redirect(reverse('tracker:networth'))
+
+
+@login_required
+@require_POST
+def networth_update(request, pk):
+    from .models import NetWorthSnapshot
+    s = get_object_or_404(NetWorthSnapshot, pk=pk)
+    nw = (request.POST.get('net_worth') or '').replace(',', '').replace('$', '').strip()
+    if nw:
+        s.net_worth = Decimal(nw)
+    if 'date' in request.POST and request.POST['date']:
+        s.snapshot_date = request.POST['date']
+    s.notes = request.POST.get('notes', '')
+    s.save()
+    messages.success(request, f'Updated net worth for {s.snapshot_date}.')
+    return redirect(reverse('tracker:networth'))
+
+
+@login_required
+@require_POST
+def networth_delete(request, pk):
+    from .models import NetWorthSnapshot
+    s = get_object_or_404(NetWorthSnapshot, pk=pk)
+    d = s.snapshot_date
+    s.delete()
+    messages.success(request, f'Deleted net worth snapshot for {d}.')
+    return redirect(reverse('tracker:networth'))
 
 
 @login_required

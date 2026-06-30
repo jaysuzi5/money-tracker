@@ -82,6 +82,12 @@ class PortfolioSnapshotAdmin(admin.ModelAdmin):
     date_hierarchy = 'snapshot_date'
 
 
+@admin.register(models.NetWorthSnapshot)
+class NetWorthSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('snapshot_date', 'net_worth', 'notes')
+    date_hierarchy = 'snapshot_date'
+
+
 @admin.register(models.SyncRun)
 class SyncRunAdmin(admin.ModelAdmin):
     list_display = ('started_at', 'connector_type', 'institution', 'accounts_synced',

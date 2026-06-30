@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Net Worth{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div><h1>Net Worth History</h1></div>
+  <form method="post" action="{% url 'tracker:networth_capture' %}" class="d-flex gap-2 align-items-center m-0"
+        onsubmit="return confirm('Capture current net worth ($' + '{{ current_nw|floatformat:0|intcomma }}' + ') for this date?')">{% csrf_token %}
+    <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto">
+    <input type="text" name="notes" placeholder="Notes (optional)" class="form-control form-control-sm" style="width:220px">
+    <button class="btn btn-sm btn-primary"><i class="bi bi-camera"></i> Capture snapshot</button>
+  </form>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="card stat-card h-100">
+    <div class="label">Current Net Worth</div>
+    <div class="value num pos" style="font-size:1.4rem">${{ current_nw|floatformat:0|intcomma }}</div>
+    <div class="small text-secondary">live · across all accounts</div>
+  </div></div>
+  <div class="col-6 col-lg-3"><div class="card stat-card h-100">
+    <div class="label">Latest Snapshot</div>
+    <div class="value num" style="font-size:1.4rem">{% if latest %}${{ latest.net_worth|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
+    <div class="small text-secondary">{% if latest %}{{ latest.snapshot_date|date:"M j, Y" }}{% else %}no snapshots yet{% endif %}</div>
+  </div></div>
+  <div class="col-6 col-lg-3"><div class="card stat-card h-100">
+    <div class="label">{{ cur_year }} YTD</div>
+    <div class="value num {% if ytd_change and ytd_change >= 0 %}pos{% elif ytd_change %}neg{% endif %}" style="font-size:1.4rem">
+      {% if ytd_change != None %}{% if ytd_change >= 0 %}+{% endif %}${{ ytd_change|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
+    <div class="small text-secondary">{% if ytd_pct != None %}{{ ytd_pct|floatformat:1 }}%{% endif %}</div>
+  </div></div>
+  <div class="col-6 col-lg-3"><div class="card stat-card h-100">
+    <div class="label">All-Time Change</div>
+    <div class="value num {% if total_change and total_change >= 0 %}pos{% elif total_change %}neg{% endif %}" style="font-size:1.4rem">
+      {% if total_change != None %}{% if total_change >= 0 %}+{% endif %}${{ total_change|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
+    <div class="small text-secondary">{% if total_pct != None %}{{ total_pct|floatformat:1 }}% · {% endif %}{{ count }} snapshot{{ count|pluralize }}</div>
+  </div></div>
+</div>
+
+<div class="card mb-4"><div class="card-body"><canvas id="nw" height="90"></canvas></div></div>
+
+<div class="card table-card">
+  <table class="table table-hover">
+    <thead><tr><th>Date</th><th class="text-end">Net Worth</th><th class="text-end">Change</th><th class="text-end">%</th><th>Notes</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="text-nowrap fw-semibold">{{ r.s.snapshot_date|date:"M j, Y" }}</td>
+        <td class="text-end num fw-semibold">${{ r.s.net_worth|floatformat:2|intcomma }}</td>
+        <td class="text-end num {% if r.change and r.change >= 0 %}amount-pos{% elif r.change %}amount-neg{% endif %}">
+          {% if r.change != None %}{% if r.change >= 0 %}+{% endif %}${{ r.change|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="text-end num small text-secondary">{% if r.pct != None %}{{ r.pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+        <td class="small text-secondary">{{ r.s.notes }}</td>
+        <td class="text-end text-nowrap">
+          <button class="btn btn-sm btn-outline-secondary py-0" data-bs-toggle="modal" data-bs-target="#edit-{{ r.s.id }}"><i class="bi bi-pencil"></i></button>
+          <form method="post" action="{% url 'tracker:networth_delete' r.s.id %}" class="d-inline" onsubmit="return confirm('Delete snapshot for {{ r.s.snapshot_date|date:"M j, Y" }}?')">{% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6"><div class="empty-state">No net worth snapshots yet. Capture one above.</div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% for r in rows %}
+<div class="modal fade" id="edit-{{ r.s.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" action="{% url 'tracker:networth_update' r.s.id %}" class="modal-content">{% csrf_token %}
+      <div class="modal-header"><h5 class="modal-title">Edit snapshot</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Date</label>
+          <input type="date" name="date" value="{{ r.s.snapshot_date|date:'Y-m-d' }}" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Net Worth</label>
+          <input type="text" name="net_worth" value="{{ r.s.net_worth|floatformat:2 }}" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Notes</label>
+          <textarea name="notes" class="form-control" rows="2">{{ r.s.notes }}</textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+{{ chart|json_script:"nw-data" }}
+<script>
+  const d = JSON.parse(document.getElementById('nw-data').textContent);
+  if (d.length) new Chart(document.getElementById('nw'), {
+    type: 'line',
+    data: { datasets: [{ label: 'Net worth', data: d.map(x => ({x: x.date, y: x.net_worth})),
+      borderColor: '#0e9f6e', backgroundColor: 'rgba(14,159,110,.12)', fill: true, tension: .25, pointRadius: 2 }] },
+    options: { plugins: { legend: { display: false } },
+      scales: { x: { type: 'time', time: { unit: 'month', tooltipFormat: 'MMM d, yyyy' } },
+        y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
+  });
+</script>
+{% endblock %}
