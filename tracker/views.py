@@ -1081,25 +1081,20 @@ def portfolio(request):
                     .select_related('institution'))
     total = Decimal('0')
     tax_totals = {k: Decimal('0') for k, _ in TaxTreatment.choices}
-    type_totals = {}
     rows = []
     for a in accounts:
         val = a.online_balance or Decimal('0')
         total += val
         if a.tax_treatment:
             tax_totals[a.tax_treatment] += val
-        t = a.get_type_display()
-        type_totals[t] = type_totals.get(t, Decimal('0')) + val
         rows.append({'acct': a, 'value': val})
     rows.sort(key=lambda r: r['value'], reverse=True)
 
-    tax_rows = [{'label': lbl, 'desc': TAX_META[k][0], 'cls': TAX_META[k][1],
-                 'total': tax_totals[k], 'pct': (tax_totals[k] / total * 100) if total else 0}
-                for k, lbl in TaxTreatment.choices]
-    type_rows = sorted(({'label': k, 'total': v,
-                         'pct': (v / total * 100) if total else 0}
-                        for k, v in type_totals.items()),
-                       key=lambda x: x['total'], reverse=True)
+    tax_rows = sorted(
+        ({'label': lbl, 'desc': TAX_META[k][0], 'cls': TAX_META[k][1],
+          'total': tax_totals[k], 'pct': (tax_totals[k] / total * 100) if total else 0}
+         for k, lbl in TaxTreatment.choices),
+        key=lambda x: x['total'], reverse=True)
 
     # trend (last 12 months): for each snapshot date, sum each account's most-recent balance
     acct_ids = [a.id for a in accounts]
@@ -1131,7 +1126,7 @@ def portfolio(request):
             draw.append(max(0.0, anchor - float(DRAWDOWN_MONTHLY) * months))
 
     return render(request, 'tracker/portfolio.html', {
-        'total': total, 'tax_rows': tax_rows, 'type_rows': type_rows,
+        'total': total, 'tax_rows': tax_rows,
         'rows': rows, 'chart': series, 'draw': draw, 'today': timezone.now().date(),
         'draw_monthly': DRAWDOWN_MONTHLY, 'retirement': RETIREMENT_DATE,
     })

@@ -35,21 +35,7 @@
 <h6 class="text-secondary text-uppercase small fw-bold mb-2">Portfolio Performance (Last 12 Months)</h6>
 <div class="card mb-4"><div class="card-body"><canvas id="trend" height="90"></canvas></div></div>
 
-{# 4. Breakdown by Account Type #}
-<h6 class="text-secondary text-uppercase small fw-bold mb-2">Breakdown by Account Type</h6>
-<div class="row row-cols-2 row-cols-lg-5 g-3 mb-4">
-  {% for t in type_rows %}
-    <div class="col">
-      <div class="card stat-card h-100">
-        <div class="label">{{ t.label }}</div>
-        <div class="value num" style="font-size:1.25rem">${{ t.total|floatformat:0|intcomma }}</div>
-        <div class="small text-secondary">{{ t.pct|floatformat:1 }}%</div>
-      </div>
-    </div>
-  {% endfor %}
-</div>
-
-{# 5. All Accounts #}
+{# 4. All Accounts #}
 <h6 class="text-secondary text-uppercase small fw-bold mb-2">All Accounts</h6>
 <div class="card table-card">
   <table class="table table-hover">
