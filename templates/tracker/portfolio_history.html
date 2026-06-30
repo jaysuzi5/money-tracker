@@ -29,17 +29,16 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 {{ chart|json_script:"hist-data" }}
 <script>
   const d = JSON.parse(document.getElementById('hist-data').textContent);
+  const fmt = s => { const [y,m] = s.split('-'); return new Date(y, m-1).toLocaleString('en-US',{month:'short',year:'numeric'}); };
   if (d.length) new Chart(document.getElementById('hist'), {
     type: 'line',
-    data: { datasets: [{ label: '{{ account.name }}', data: d.map(x => ({x: x.date, y: x.balance})),
+    data: { labels: d.map(x => fmt(x.date)), datasets: [{ label: '{{ account.name }}', data: d.map(x => x.balance),
       borderColor: '#0e9f6e', backgroundColor: 'rgba(14,159,110,.12)', fill: true, tension: .25, pointRadius: 2 }] },
     options: { plugins: { legend: { display: false } },
-      scales: { x: { type: 'time', time: { unit: 'month', tooltipFormat: 'MMM d, yyyy' } },
-        y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
+      scales: { y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
   });
 </script>
 {% endblock %}

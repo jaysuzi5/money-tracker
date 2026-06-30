@@ -1071,7 +1071,7 @@ TAX_META = {
     'cash': ('Cash / savings', 'tt-cash'),
 }
 DRAWDOWN_MONTHLY = Decimal('4583')  # ~$55k/yr reference drawdown
-RETIREMENT_DATE = date(2026, 4, 15)
+RETIREMENT_DATE = date(2026, 5, 1)
 
 
 @login_required
@@ -1115,22 +1115,20 @@ def portfolio(request):
                 latest[s['account_id']] = s['balance']
         series.append({'date': d.isoformat(), 'balance': float(sum(latest.values(), Decimal('0')))})
 
-    # drawdown reference: flat until retirement, then linear $DRAWDOWN_MONTHLY/mo to $0
+    # drawdown reference (category axis): null before retirement, then linear $DRAWDOWN_MONTHLY/mo.
+    # aligned 1:1 with the chart labels so it starts at the retirement snapshot.
     anchor_map = {}
     for s in snaps:
         if s['snapshot_date'] <= RETIREMENT_DATE:
             anchor_map[s['account_id']] = s['balance']
     anchor = float(sum(anchor_map.values(), Decimal('0'))) or (series[-1]['balance'] if series else 0.0)
     draw = []
-    if anchor > 0:
-        first_date = series[0]['date'] if series else RETIREMENT_DATE.isoformat()
-        end_date = dates[-1] if dates else RETIREMENT_DATE
-        draw = [{'date': first_date, 'balance': anchor},
-                {'date': RETIREMENT_DATE.isoformat(), 'balance': anchor}]
-        if end_date > RETIREMENT_DATE:
-            months = (end_date - RETIREMENT_DATE).days / 30.44
-            end_balance = max(0.0, anchor - float(DRAWDOWN_MONTHLY) * months)
-            draw.append({'date': end_date.isoformat(), 'balance': end_balance})
+    for d in dates:
+        if d < RETIREMENT_DATE or anchor <= 0:
+            draw.append(None)
+        else:
+            months = (d - RETIREMENT_DATE).days / 30.44
+            draw.append(max(0.0, anchor - float(DRAWDOWN_MONTHLY) * months))
 
     return render(request, 'tracker/portfolio.html', {
         'total': total, 'tax_rows': tax_rows, 'type_rows': type_rows,

@@ -77,25 +77,22 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 {{ chart|json_script:"trend-data" }}
 {{ draw|json_script:"draw-data" }}
 <script>
   const d = JSON.parse(document.getElementById('trend-data').textContent);
   const dd = JSON.parse(document.getElementById('draw-data').textContent);
+  const fmt = s => { const [y,m] = s.split('-'); return new Date(y, m-1).toLocaleString('en-US',{month:'short',year:'numeric'}); };
   new Chart(document.getElementById('trend'), {
     type: 'line',
-    data: { datasets: [
-      { label: 'Portfolio value', data: d.map(x => ({x: x.date, y: x.balance})),
+    data: { labels: d.map(x => fmt(x.date)), datasets: [
+      { label: 'Portfolio value', data: d.map(x => x.balance),
         borderColor: '#0e9f6e', backgroundColor: 'rgba(14,159,110,.12)', fill: true, tension: .25, pointRadius: 2 },
       { label: 'Draw-down from retirement (${{ draw_monthly|floatformat:0|intcomma }}/mo)',
-        data: dd.map(x => ({x: x.date, y: x.balance})),
-        borderColor: '#e11d48', borderDash: [6,4], fill: false, tension: 0, pointRadius: 0 }
+        data: dd, borderColor: '#e11d48', borderDash: [6,4], fill: false, tension: 0, pointRadius: 0, spanGaps: false }
     ] },
     options: { plugins: { legend: { display: true, labels: { boxWidth: 12 } } },
-      scales: {
-        x: { type: 'time', time: { unit: 'month', tooltipFormat: 'MMM d, yyyy' } },
-        y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
+      scales: { y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
   });
 </script>
 {% endblock %}

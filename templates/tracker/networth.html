@@ -99,27 +99,25 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 {{ chart|json_script:"nw-data" }}
 <script>
   const d = JSON.parse(document.getElementById('nw-data').textContent);
+  const fmt = s => { const [y,m] = s.split('-'); return new Date(y, m-1).toLocaleString('en-US',{month:'short',year:'numeric'}); };
   if (d.length) new Chart(document.getElementById('nw'), {
     type: 'line',
-    data: { datasets: [{ label: 'Net worth', data: d.map(x => ({x: x.date, y: x.net_worth})),
+    data: { labels: d.map(x => fmt(x.date)), datasets: [{ label: 'Net worth', data: d.map(x => x.net_worth),
       borderColor: '#0e9f6e', backgroundColor: 'rgba(14,159,110,.12)', fill: true, tension: .25, pointRadius: 2 }] },
     options: { plugins: { legend: { display: false } },
-      scales: { x: { type: 'time', time: { unit: 'month', tooltipFormat: 'MMM d, yyyy' } },
-        y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
+      scales: { y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
   });
   const chg = d.slice(1);
   if (chg.length) new Chart(document.getElementById('nwchg'), {
     type: 'bar',
-    data: { datasets: [{ label: 'Monthly change', data: chg.map(x => ({x: x.date, y: x.change})),
+    data: { labels: chg.map(x => fmt(x.date)), datasets: [{ label: 'Monthly change', data: chg.map(x => x.change),
       backgroundColor: chg.map(x => x.change >= 0 ? 'rgba(14,159,110,.7)' : 'rgba(225,29,72,.7)'),
       borderColor: chg.map(x => x.change >= 0 ? '#0e9f6e' : '#e11d48'), borderWidth: 1 }] },
     options: { plugins: { legend: { display: false } },
-      scales: { x: { type: 'time', time: { unit: 'month', tooltipFormat: 'MMM d, yyyy' } },
-        y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
+      scales: { y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
   });
 </script>
 {% endblock %}
