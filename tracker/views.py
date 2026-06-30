@@ -1001,6 +1001,69 @@ def restore_qif(request):
 
 
 @login_required
+def portfolio(request):
+    from .models import PortfolioSnapshot, TaxTreatment
+    accounts = list(Account.objects.filter(is_active=True, in_portfolio=True)
+                    .select_related('institution'))
+    total = Decimal('0')
+    tax_totals = {k: Decimal('0') for k, _ in TaxTreatment.choices}
+    type_totals = {}
+    rows = []
+    for a in accounts:
+        val = a.online_balance or Decimal('0')
+        total += val
+        if a.tax_treatment:
+            tax_totals[a.tax_treatment] += val
+        t = a.get_type_display()
+        type_totals[t] = type_totals.get(t, Decimal('0')) + val
+        rows.append({'acct': a, 'value': val})
+    rows.sort(key=lambda r: r['value'], reverse=True)
+
+    tax_rows = [{'code': k, 'label': lbl, 'total': tax_totals[k],
+                 'pct': (tax_totals[k] / total * 100) if total else 0}
+                for k, lbl in TaxTreatment.choices if tax_totals[k]]
+    type_rows = sorted(({'label': k, 'total': v,
+                         'pct': (v / total * 100) if total else 0}
+                        for k, v in type_totals.items()),
+                       key=lambda x: x['total'], reverse=True)
+
+    # trend from PortfolioSnapshot: for each snapshot date, sum each account's
+    # most-recent snapshot on/before that date
+    acct_ids = [a.id for a in accounts]
+    dates = list(PortfolioSnapshot.objects.filter(account_id__in=acct_ids)
+                 .values_list('snapshot_date', flat=True).distinct().order_by('snapshot_date'))
+    snaps = list(PortfolioSnapshot.objects.filter(account_id__in=acct_ids)
+                 .values('account_id', 'snapshot_date', 'balance').order_by('snapshot_date'))
+    series = []
+    for d in dates:
+        latest = {}
+        for s in snaps:
+            if s['snapshot_date'] <= d:
+                latest[s['account_id']] = s['balance']
+        series.append({'date': d.isoformat(), 'balance': float(sum(latest.values(), Decimal('0')))})
+
+    return render(request, 'tracker/portfolio.html', {
+        'total': total, 'tax_rows': tax_rows, 'type_rows': type_rows,
+        'rows': rows, 'chart': series, 'today': timezone.now().date(),
+    })
+
+
+@login_required
+@require_POST
+def portfolio_snapshot(request):
+    from .models import PortfolioSnapshot
+    d = request.POST.get('date') or timezone.now().date()
+    n = 0
+    for a in Account.objects.filter(is_active=True, in_portfolio=True):
+        PortfolioSnapshot.objects.update_or_create(
+            account=a, snapshot_date=d,
+            defaults={'balance': a.online_balance or Decimal('0'), 'notes': 'manual capture'})
+        n += 1
+    messages.success(request, f'Captured snapshot for {n} accounts on {d}.')
+    return redirect(reverse('tracker:portfolio'))
+
+
+@login_required
 def export_qif(request, account_id=None):
     from django.http import HttpResponse
     from .qif_export import build_qif

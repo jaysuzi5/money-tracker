@@ -52,6 +52,7 @@ class AccountForm(forms.ModelForm):
         model = Account
         fields = ['name', 'type', 'is_reconcilable', 'is_investment',
                   'is_manual', 'manual_balance', 'is_active',
+                  'in_portfolio', 'tax_treatment',
                   'online_balance', 'current_balance']
 
     def __init__(self, *args, **kwargs):

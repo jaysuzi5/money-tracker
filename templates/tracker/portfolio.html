@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Portfolio{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div><h1>Portfolio</h1><div class="subtitle">Investment &amp; retirement accounts · net value over time</div></div>
+  <form method="post" action="{% url 'tracker:portfolio_snapshot' %}" class="d-flex gap-2 align-items-center m-0"
+        onsubmit="return confirm('Capture a snapshot of all portfolio accounts for this date?')">{% csrf_token %}
+    <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto">
+    <button class="btn btn-sm btn-primary"><i class="bi bi-camera"></i> Capture snapshot</button>
+  </form>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card stat-card h-100">
+      <div class="label">Total portfolio</div>
+      <div class="value pos num">${{ total|floatformat:0|intcomma }}</div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      <canvas id="trend" height="120"></canvas>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card table-card">
+      <div class="card-header"><i class="bi bi-pie-chart me-1"></i> By tax treatment</div>
+      <table class="table">
+        <tbody>
+        {% for t in tax_rows %}
+          <tr><td>{{ t.label }}</td>
+            <td class="text-end text-secondary small">{{ t.pct|floatformat:1 }}%</td>
+            <td class="text-end num fw-semibold">${{ t.total|floatformat:0|intcomma }}</td></tr>
+        {% empty %}<tr><td class="empty-state" colspan="3">Set a tax treatment on accounts (account ⚙️).</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card table-card">
+      <div class="card-header"><i class="bi bi-bank me-1"></i> By account type</div>
+      <table class="table">
+        <tbody>
+        {% for t in type_rows %}
+          <tr><td>{{ t.label }}</td>
+            <td class="text-end text-secondary small">{{ t.pct|floatformat:1 }}%</td>
+            <td class="text-end num fw-semibold">${{ t.total|floatformat:0|intcomma }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card table-card mt-4">
+  <div class="card-header">Accounts</div>
+  <table class="table table-hover">
+    <thead><tr><th>Account</th><th>Institution</th><th>Type</th><th>Tax</th><th class="text-end">Value</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="fw-semibold"><a href="{% url 'tracker:dashboard' %}?account={{ r.acct.id }}">{{ r.acct.name }}</a></td>
+        <td class="text-secondary">{{ r.acct.institution.name }}</td>
+        <td><span class="badge type-badge">{{ r.acct.get_type_display }}</span></td>
+        <td class="small text-secondary">{{ r.acct.get_tax_treatment_display|default:"—" }}</td>
+        <td class="text-end num fw-semibold">${{ r.value|floatformat:2|intcomma }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5"><div class="empty-state">No portfolio accounts. Mark accounts "in portfolio" via the account ⚙️.</div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{{ chart|json_script:"trend-data" }}
+<script>
+  const d = JSON.parse(document.getElementById('trend-data').textContent);
+  new Chart(document.getElementById('trend'), {
+    type: 'line',
+    data: { labels: d.map(x => x.date), datasets: [{
+      label: 'Portfolio value', data: d.map(x => x.balance),
+      borderColor: '#0e9f6e', backgroundColor: 'rgba(14,159,110,.12)', fill: true, tension: .25, pointRadius: 2 }] },
+    options: { plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
+  });
+</script>
+{% endblock %}

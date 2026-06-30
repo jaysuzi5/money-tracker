@@ -29,6 +29,15 @@ class AccountType(models.TextChoices):
     OTHER = 'other', 'Other'
 
 
+class TaxTreatment(models.TextChoices):
+    PRE_TAX = 'pre_tax', 'Pre-Tax'
+    ROTH = 'roth', 'Roth'
+    PENSION = 'pension', 'Pension'
+    TAXABLE = 'taxable', 'Taxable'
+    HSA = 'hsa', 'HSA'
+    CASH = 'cash', 'Cash'
+
+
 class TxnStatus(models.TextChoices):
     UNCLEARED = 'uncleared', 'Uncleared'
     CLEARED = 'cleared', 'Cleared'
@@ -94,6 +103,8 @@ class Account(models.Model):
     is_manual = models.BooleanField(default=False)  # online_balance maintained by hand; sync won't overwrite
     manual_balance = models.BooleanField(default=False)  # current_balance set by hand; not recomputed
     is_active = models.BooleanField(default=True)
+    in_portfolio = models.BooleanField(default=False)  # include in the Portfolio view + snapshots
+    tax_treatment = models.CharField(max_length=10, choices=TaxTreatment.choices, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -318,6 +329,24 @@ class BalanceSnapshot(models.Model):
 
     def __str__(self):
         return f'{self.account.name} {self.date} {self.balance}'
+
+
+class PortfolioSnapshot(models.Model):
+    """Curated point-in-time balance per portfolio account (monthly / on demand).
+    Separate from the daily BalanceSnapshot so portfolio history is intentional."""
+    account = models.ForeignKey(
+        Account, on_delete=models.CASCADE, related_name='portfolio_snapshots')
+    snapshot_date = models.DateField()
+    balance = models.DecimalField(max_digits=15, decimal_places=2)
+    notes = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-snapshot_date', 'account__name']
+        unique_together = [('account', 'snapshot_date')]
+
+    def __str__(self):
+        return f'{self.account.name} {self.snapshot_date} {self.balance}'
 
 
 class SyncRun(models.Model):

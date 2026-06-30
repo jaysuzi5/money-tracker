@@ -75,6 +75,13 @@ class BalanceSnapshotAdmin(admin.ModelAdmin):
     date_hierarchy = 'date'
 
 
+@admin.register(models.PortfolioSnapshot)
+class PortfolioSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('account', 'snapshot_date', 'balance', 'notes')
+    list_filter = ('account',)
+    date_hierarchy = 'snapshot_date'
+
+
 @admin.register(models.SyncRun)
 class SyncRunAdmin(admin.ModelAdmin):
     list_display = ('started_at', 'connector_type', 'institution', 'accounts_synced',
