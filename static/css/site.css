@@ -129,8 +129,8 @@ body {
 .table-card .table tbody td:last-child { padding-right: 1.1rem; }
 
 .num { font-variant-numeric: tabular-nums; }
-.amount-neg { color: var(--mt-bad); font-weight: 600; }
-.amount-pos { color: var(--mt-good); font-weight: 600; }
+.amount-neg, .table .amount-neg { color: var(--mt-bad) !important; font-weight: 600; }
+.amount-pos, .table .amount-pos { color: var(--mt-good) !important; font-weight: 600; }
 
 /* ---- Badges ---- */
 .badge.type-badge {
