@@ -371,7 +371,7 @@ table.qk-table .num { text-align: right; font-variant-numeric: tabular-nums; whi
 .stat-card.tt-taxable { --tt:#eab308; }
 .stat-card.tt-cash    { --tt:#64748b; }
 .stat-card[class*="tt-"] {
-  border: 4px solid var(--tt);
+  border-top: 8px solid var(--tt);
 }
 .stat-card[class*="tt-"] .label { color: var(--tt); font-weight: 700; }
 
