@@ -26,6 +26,18 @@
         {% for r in all_roots %}<option value="{{ r.id }}" {% if r.id|stringformat:'s' in selected %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
       </select>
     </div>
+    <div>
+      <label class="rpt-lbl">Columns</label>
+      <select name="group" class="form-select form-select-sm">
+        <option value="none" {% if group == 'none' %}selected{% endif %}>Total</option>
+        <option value="year" {% if group == 'year' %}selected{% endif %}>By year</option>
+        <option value="month" {% if group == 'month' %}selected{% endif %}>By month</option>
+      </select>
+    </div>
+    <div class="form-check mb-1">
+      <input type="checkbox" class="form-check-input" id="transfers" name="transfers" value="1" {% if include_transfers %}checked{% endif %}>
+      <label class="form-check-label small" for="transfers">Include transfers</label>
+    </div>
     <input type="hidden" name="level" value="sub">
     <button class="btn btn-sm btn-primary">Apply</button>
     <a href="?" class="btn btn-sm btn-light">Reset</a>

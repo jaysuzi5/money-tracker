@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Category report{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <h1>Category report</h1>
+  <a href="{% url 'tracker:reports' %}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i> Reports</a>
+</div>
+
+<div class="rpt-toolbar">
+  <form method="get" class="d-flex flex-wrap align-items-end gap-2 m-0">
+    <div>
+      <label class="rpt-lbl">Range</label>
+      <select name="range" class="form-select form-select-sm">
+        <option value="all" {% if preset == 'all' %}selected{% endif %}>All dates</option>
+        <option value="ytd" {% if preset == 'ytd' %}selected{% endif %}>Year to date</option>
+        <option value="12m" {% if preset == '12m' %}selected{% endif %}>Last 12 months</option>
+        <option value="3m" {% if preset == '3m' %}selected{% endif %}>Last 3 months</option>
+      </select>
+    </div>
+    <div><label class="rpt-lbl">From</label><input type="date" name="start" value="{{ start }}" class="form-control form-control-sm"></div>
+    <div><label class="rpt-lbl">To</label><input type="date" name="end" value="{{ end }}" class="form-control form-control-sm"></div>
+    <div>
+      <label class="rpt-lbl">Limit to</label>
+      <select name="cats" class="form-select form-select-sm tsearch" multiple style="min-width:200px">
+        {% for r in all_roots %}<option value="{{ r.id }}" {% if r.id|stringformat:'s' in selected %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="rpt-lbl">Columns</label>
+      <select name="group" class="form-select form-select-sm">
+        <option value="none" {% if group == 'none' %}selected{% endif %}>Total</option>
+        <option value="year" {% if group == 'year' %}selected{% endif %}>By year</option>
+        <option value="month" {% if group == 'month' %}selected{% endif %}>By month</option>
+      </select>
+    </div>
+    <div class="form-check mb-1">
+      <input type="checkbox" class="form-check-input" id="transfers" name="transfers" value="1" {% if include_transfers %}checked{% endif %}>
+      <label class="form-check-label small" for="transfers">Include transfers</label>
+    </div>
+    <input type="hidden" name="level" value="sub">
+    <button class="btn btn-sm btn-primary">Apply</button>
+    <a href="?" class="btn btn-sm btn-light">Reset</a>
+    <span class="ms-auto d-flex gap-1">
+      <button type="button" id="rpt-expand" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrows-expand"></i> Expand all</button>
+      <button type="button" id="rpt-collapse" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrows-collapse"></i> Collapse all</button>
+    </span>
+  </form>
+</div>
+
+<div class="card table-card rpt-pivot-wrap">
+  <table class="table rpt-pivot">
+    <thead>
+      <tr>
+        <th class="rpt-pivot-cat">Category</th>
+        {% for c, lbl in col_labels %}<th class="text-end">{{ lbl }}</th>{% endfor %}
+        <th class="text-end rpt-pivot-total">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for sec in sections %}
+      <tr class="rpt-pivot-sec"><td colspan="{{ ncols|add:2 }}">{{ sec.name }}</td></tr>
+      {% for r in sec.rows %}
+        <tr class="rpt-pivot-row {% if r.children %}has-kids{% endif %}" {% if r.children %}data-kids="k{{ sec.slug }}{{ forloop.counter }}"{% endif %}>
+          <td class="rpt-pivot-cat">
+            {% if r.children %}<i class="bi bi-caret-right-fill rpt-caret-kids"></i>{% else %}<span class="rpt-spacer"></span>{% endif %}
+            <a href="{% url 'tracker:category_summary' r.cat.id %}">{{ r.cat.name }}</a>
+          </td>
+          {% for v in r.vals %}<td class="text-end num {% if v < 0 %}amount-neg{% elif v > 0 %}amount-pos{% endif %}">{% if v %}${{ v|floatformat:0|intcomma }}{% else %}—{% endif %}</td>{% endfor %}
+          <td class="text-end num fw-semibold {% if r.total < 0 %}amount-neg{% elif r.total > 0 %}amount-pos{% endif %}">${{ r.total|floatformat:0|intcomma }}</td>
+        </tr>
+        {% for c in r.children %}
+          <tr class="rpt-pivot-sub k{{ sec.slug }}{{ forloop.parentloop.counter }}" style="display:none">
+            <td class="rpt-pivot-cat rpt-pivot-subcat"><a href="{% url 'tracker:category_summary' c.cat.id %}">{{ c.cat.name }}</a></td>
+            {% for v in c.vals %}<td class="text-end num small {% if v < 0 %}amount-neg{% elif v > 0 %}amount-pos{% endif %}">{% if v %}${{ v|floatformat:0|intcomma }}{% else %}—{% endif %}</td>{% endfor %}
+            <td class="text-end num small {% if c.total < 0 %}amount-neg{% elif c.total > 0 %}amount-pos{% endif %}">${{ c.total|floatformat:0|intcomma }}</td>
+          </tr>
+        {% endfor %}
+      {% empty %}
+        <tr><td colspan="{{ ncols|add:2 }}" class="rpt-empty">No categories.</td></tr>
+      {% endfor %}
+      <tr class="rpt-pivot-sectot">
+        <td class="rpt-pivot-cat">{{ sec.name }} total</td>
+        {% for v in sec.col_totals %}<td class="text-end num {% if v < 0 %}amount-neg{% elif v > 0 %}amount-pos{% endif %}">{% if v %}${{ v|floatformat:0|intcomma }}{% else %}—{% endif %}</td>{% endfor %}
+        <td class="text-end num fw-semibold {% if sec.total < 0 %}amount-neg{% elif sec.total > 0 %}amount-pos{% endif %}">${{ sec.total|floatformat:0|intcomma }}</td>
+      </tr>
+    {% endfor %}
+      <tr class="rpt-pivot-net">
+        <td class="rpt-pivot-cat">Net</td>
+        {% for v in net_cols %}<td class="text-end num {% if v < 0 %}amount-neg{% elif v > 0 %}amount-pos{% endif %}">{% if v %}${{ v|floatformat:0|intcomma }}{% else %}—{% endif %}</td>{% endfor %}
+        <td class="text-end num fw-semibold {% if net_total < 0 %}amount-neg{% elif net_total > 0 %}amount-pos{% endif %}">${{ net_total|floatformat:0|intcomma }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('.rpt-pivot-row.has-kids').forEach(row => row.addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    const k = row.dataset.kids;
+    const open = row.classList.toggle('open');
+    document.querySelectorAll('tr.' + k).forEach(s => s.style.display = open ? '' : 'none');
+    const ic = row.querySelector('.rpt-caret-kids');
+    if (ic) { ic.classList.toggle('bi-caret-down-fill', open); ic.classList.toggle('bi-caret-right-fill', !open); }
+  }));
+  document.getElementById('rpt-expand').onclick = () => {
+    document.querySelectorAll('.rpt-pivot-row.has-kids').forEach(row => {
+      row.classList.add('open');
+      document.querySelectorAll('tr.' + row.dataset.kids).forEach(s => s.style.display = '');
+      const ic = row.querySelector('.rpt-caret-kids');
+      if (ic) { ic.classList.add('bi-caret-down-fill'); ic.classList.remove('bi-caret-right-fill'); }
+    });
+  };
+  document.getElementById('rpt-collapse').onclick = () => {
+    document.querySelectorAll('.rpt-pivot-row.has-kids').forEach(row => {
+      row.classList.remove('open');
+      document.querySelectorAll('tr.' + row.dataset.kids).forEach(s => s.style.display = 'none');
+      const ic = row.querySelector('.rpt-caret-kids');
+      if (ic) { ic.classList.remove('bi-caret-down-fill'); ic.classList.add('bi-caret-right-fill'); }
+    });
+  };
+</script>
+{% endblock %}

@@ -872,18 +872,40 @@ def _date_range(request):
 
 
 def _cat_sum(ids, start, end):
-    """Net amount attributable to a category (and descendants), splits-aware."""
+    """Net amount attributable to a category (and descendants), splits-aware.
+    Range is [start, end) — start inclusive, end exclusive."""
     direct = Transaction.objects.filter(category_id__in=ids, splits__isnull=True)
     split = TransactionSplit.objects.filter(category_id__in=ids)
     if start:
         direct = direct.filter(date__gte=start)
         split = split.filter(transaction__date__gte=start)
     if end:
-        direct = direct.filter(date__lte=end)
-        split = split.filter(transaction__date__lte=end)
+        direct = direct.filter(date__lt=end)
+        split = split.filter(transaction__date__lt=end)
     d = direct.aggregate(s=Sum('amount'))['s'] or Decimal('0')
     s = split.aggregate(s=Sum('amount'))['s'] or Decimal('0')
     return d + s
+
+
+def _cat_period_sums(ids, start, end, gran):
+    """Per-period net sums for a category tree. Returns {period_date: Decimal}.
+    gran is 'year' or 'month'. Range is [start, end) — end exclusive."""
+    from django.db.models.functions import TruncMonth, TruncYear
+    trunc = TruncYear if gran == 'year' else TruncMonth
+    direct = Transaction.objects.filter(category_id__in=ids, splits__isnull=True)
+    split = TransactionSplit.objects.filter(category_id__in=ids)
+    if start:
+        direct = direct.filter(date__gte=start)
+        split = split.filter(transaction__date__gte=start)
+    if end:
+        direct = direct.filter(date__lt=end)
+        split = split.filter(transaction__date__lt=end)
+    out = {}
+    for row in direct.annotate(p=trunc('date')).values('p').annotate(s=Sum('amount')):
+        out[row['p']] = out.get(row['p'], Decimal('0')) + (row['s'] or Decimal('0'))
+    for row in split.annotate(p=trunc('transaction__date')).values('p').annotate(s=Sum('amount')):
+        out[row['p']] = out.get(row['p'], Decimal('0')) + (row['s'] or Decimal('0'))
+    return out
 
 
 @login_required
@@ -891,23 +913,36 @@ def report_categories(request):
     start, end, preset = _date_range(request)
     level = request.GET.get('level', 'sub')  # 'top' or 'sub'
     selected = request.GET.getlist('cats')   # top-level category ids to include
+    include_transfers = bool(request.GET.get('transfers'))
+    group = request.GET.get('group', 'none')  # 'none' | 'year' | 'month'
 
     roots = list(Category.objects.filter(parent__isnull=True).order_by('name')
                  .prefetch_related('children'))
     if selected:
         roots = [r for r in roots if str(r.id) in selected]
+    if not include_transfers:
+        roots = [r for r in roots if r.name.lower() != 'transfer']
+
+    if group in ('year', 'month'):
+        return _report_categories_grouped(request, roots, start, end, preset,
+                                          selected, include_transfers, group, level)
 
     def node(root):
         total = _cat_sum(_descendant_ids(root), start, end)
         children = []
         if level == 'sub':
             for ch in root.children.all().order_by('name'):
-                children.append({'cat': ch, 'total': _cat_sum(_descendant_ids(ch), start, end)})
+                ctotal = _cat_sum(_descendant_ids(ch), start, end)
+                if ctotal:  # hide $0 subcategories
+                    children.append({'cat': ch, 'total': ctotal})
         return {'cat': root, 'total': total, 'children': children}
 
     income, spending = [], []
     for r in roots:
-        (income if r.name.lower() == 'income' else spending).append(node(r))
+        n = node(r)
+        if not n['total'] and not n['children']:  # hide $0 categories
+            continue
+        (income if r.name.lower() == 'income' else spending).append(n)
     income_total = sum((n['total'] for n in income), Decimal('0'))
     spending_total = sum((n['total'] for n in spending), Decimal('0'))
 
@@ -931,7 +966,72 @@ def report_categories(request):
         'net_total': income_total + spending_total,
         'preset': preset, 'start': start or '', 'end': end or '',
         'all_roots': Category.objects.filter(parent__isnull=True).order_by('name'),
-        'selected': selected,
+        'selected': selected, 'include_transfers': include_transfers, 'group': 'none',
+    })
+
+
+def _report_categories_grouped(request, roots, start, end, preset,
+                               selected, include_transfers, group, level):
+    """Pivot variant: one column per year/month. A row shows if any period is nonzero."""
+    cols = set()  # period date keys appearing anywhere
+
+    def node(root):
+        sums = _cat_period_sums(_descendant_ids(root), start, end, group)
+        cols.update(sums.keys())
+        children = []
+        if level == 'sub':
+            for ch in root.children.all().order_by('name'):
+                csums = _cat_period_sums(_descendant_ids(ch), start, end, group)
+                if any(csums.values()):
+                    cols.update(csums.keys())
+                    children.append({'cat': ch, 'sums': csums})
+        return {'cat': root, 'sums': sums, 'children': children}
+
+    income, spending = [], []
+    for r in roots:
+        n = node(r)
+        if not any(n['sums'].values()) and not n['children']:
+            continue
+        (income if r.name.lower() == 'income' else spending).append(n)
+
+    columns = sorted(cols)  # date objects ascending
+    fmt = '%Y' if group == 'year' else '%b %Y'
+    col_labels = [(c, c.strftime(fmt)) for c in columns]
+
+    def build(nodes):
+        rows = []
+        for n in nodes:
+            vals = [n['sums'].get(c, Decimal('0')) for c in columns]
+            total = sum(vals, Decimal('0'))
+            kids = []
+            for ch in n['children']:
+                cvals = [ch['sums'].get(c, Decimal('0')) for c in columns]
+                kids.append({'cat': ch['cat'], 'vals': cvals,
+                             'total': sum(cvals, Decimal('0'))})
+            rows.append({'cat': n['cat'], 'vals': vals, 'total': total, 'children': kids})
+        rows.sort(key=lambda x: abs(x['total']), reverse=True)
+        return rows
+
+    def col_totals(nodes):
+        return [sum((n['sums'].get(c, Decimal('0')) for n in nodes), Decimal('0'))
+                for c in columns]
+
+    sections = [
+        {'name': 'Income', 'slug': 'i', 'rows': build(income),
+         'col_totals': col_totals(income),
+         'total': sum((sum(n['sums'].values(), Decimal('0')) for n in income), Decimal('0'))},
+        {'name': 'Expenses', 'slug': 'e', 'rows': build(spending),
+         'col_totals': col_totals(spending),
+         'total': sum((sum(n['sums'].values(), Decimal('0')) for n in spending), Decimal('0'))},
+    ]
+    net_cols = [a + b for a, b in zip(sections[0]['col_totals'], sections[1]['col_totals'])]
+
+    return render(request, 'tracker/report_categories_grouped.html', {
+        'sections': sections, 'col_labels': col_labels, 'ncols': len(columns),
+        'net_cols': net_cols, 'net_total': sections[0]['total'] + sections[1]['total'],
+        'preset': preset, 'start': start or '', 'end': end or '',
+        'all_roots': Category.objects.filter(parent__isnull=True).order_by('name'),
+        'selected': selected, 'include_transfers': include_transfers, 'group': group,
     })
 
 
