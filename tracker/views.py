@@ -971,7 +971,7 @@ TAX_META = {
     'cash': ('Cash / savings', 'tt-cash'),
 }
 DRAWDOWN_MONTHLY = Decimal('4583')  # ~$55k/yr reference drawdown
-RETIREMENT_DATE = date(2026, 4, 16)
+RETIREMENT_DATE = date(2026, 4, 15)
 
 
 @login_required
@@ -1023,12 +1023,14 @@ def portfolio(request):
     anchor = float(sum(anchor_map.values(), Decimal('0'))) or (series[-1]['balance'] if series else 0.0)
     draw = []
     if anchor > 0:
-        months_to_zero = anchor / float(DRAWDOWN_MONTHLY)
-        zero_date = RETIREMENT_DATE + timedelta(days=int(months_to_zero * 30.44))
         first_date = series[0]['date'] if series else RETIREMENT_DATE.isoformat()
+        end_date = dates[-1] if dates else RETIREMENT_DATE
         draw = [{'date': first_date, 'balance': anchor},
-                {'date': RETIREMENT_DATE.isoformat(), 'balance': anchor},
-                {'date': zero_date.isoformat(), 'balance': 0.0}]
+                {'date': RETIREMENT_DATE.isoformat(), 'balance': anchor}]
+        if end_date > RETIREMENT_DATE:
+            months = (end_date - RETIREMENT_DATE).days / 30.44
+            end_balance = max(0.0, anchor - float(DRAWDOWN_MONTHLY) * months)
+            draw.append({'date': end_date.isoformat(), 'balance': end_balance})
 
     return render(request, 'tracker/portfolio.html', {
         'total': total, 'tax_rows': tax_rows, 'type_rows': type_rows,
