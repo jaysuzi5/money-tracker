@@ -25,3 +25,5 @@ media/
 
 # os
 .DS_Store
+*.crt
+*.key

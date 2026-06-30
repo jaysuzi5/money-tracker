@@ -22,6 +22,7 @@ class NormTxn:
     amount: Decimal               # signed: negative = outflow
     payee: str = ''
     memo: str = ''
+    pending: bool = False         # provider still processing (in-flight)
 
 
 @dataclass

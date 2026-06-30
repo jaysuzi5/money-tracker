@@ -89,13 +89,19 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
                 account=acct, date=nt.date, amount=nt.amount, payee=nt.payee,
                 source=TxnSource.SIMPLEFIN).exclude(external_id=nt.external_id).exists():
             continue
-        _, created = Transaction.objects.get_or_create(
+        new_status = TxnStatus.UNCLEARED if nt.pending else TxnStatus.CLEARED
+        obj, created = Transaction.objects.get_or_create(
             account=acct, external_id=nt.external_id,
             defaults={'date': nt.date, 'amount': nt.amount, 'payee': nt.payee,
-                      'memo': nt.memo, 'status': TxnStatus.CLEARED,
+                      'memo': nt.memo, 'status': new_status,
                       'source': TxnSource.SIMPLEFIN, 'is_new': True})
         if created:
             added += 1
+        # flip processing->posted (or back) on re-sync; never touch a locked (reconciled) row
+        elif (obj.source == TxnSource.SIMPLEFIN and obj.status != TxnStatus.RECONCILED
+              and obj.status != new_status):
+            obj.status = new_status
+            obj.save(update_fields=['status'])
 
     matched = 0
     for acct in by_ext.values():

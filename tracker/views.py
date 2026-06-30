@@ -163,21 +163,16 @@ def dashboard(request):
                 run -= t.amount
 
         if account.type == AccountType.CREDIT_CARD:
-            cleared = account.transactions.filter(
-                status__in=[TxnStatus.CLEARED, TxnStatus.RECONCILED]
-            ).aggregate(s=Sum('amount'))['s'] or Decimal('0')
             credits = account.transactions.filter(
                 status=TxnStatus.UNCLEARED, amount__gt=0).aggregate(s=Sum('amount'))['s'] or Decimal('0')
             charges = account.transactions.filter(
                 status=TxnStatus.UNCLEARED, amount__lt=0).aggregate(s=Sum('amount'))['s'] or Decimal('0')
             recon = {
                 'kind': 'cc',
-                'cleared': -cleared,  # liability: show owed as negative
-                'credits': credits,
-                'charges': charges,
+                'posted': account.online_balance,   # bank-posted owed
+                'credits': credits,                 # in-flight payments/refunds
+                'charges': charges,                 # in-flight (processing) charges
                 'balance': account.current_balance,
-                'online': account.online_balance,
-                'difference': account.online_balance - account.current_balance,
             }
         elif account.manual_balance:
             recon = {

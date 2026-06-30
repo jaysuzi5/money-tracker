@@ -287,12 +287,10 @@
         <span class="spacer"></span>
         <div class="qk-recon">
           {% if recon.kind == 'cc' %}
-          <div><span class="lbl">Cleared</span><span class="num">${{ recon.cleared|floatformat:2|intcomma }}</span></div>
+          <div><span class="lbl">Posted (online)</span><span class="num">${{ recon.posted|floatformat:2|intcomma }}</span></div>
           <div><span class="lbl">Inflight credits</span><span class="num">${{ recon.credits|floatformat:2|intcomma }}</span></div>
           <div><span class="lbl">Inflight charges</span><span class="num">${{ recon.charges|floatformat:2|intcomma }}</span></div>
-          <div class="qk-recon-eq"><span class="lbl">Balance</span><span class="num fw-bold">${{ recon.balance|floatformat:2|intcomma }}</span></div>
-          <div><span class="lbl">Online</span><span class="num">${{ recon.online|floatformat:2|intcomma }}</span></div>
-          <div><span class="lbl">Difference</span><span class="num fw-bold {% if recon.difference %}qk-bal-neg{% else %}text-success{% endif %}">${{ recon.difference|floatformat:2|intcomma }}</span></div>
+          <div class="qk-recon-eq"><span class="lbl">Balance</span><span class="num fw-bold {% if recon.balance < 0 %}qk-bal-neg{% endif %}">${{ recon.balance|floatformat:2|intcomma }}</span></div>
           {% elif recon.manual %}
           <div><span class="lbl">Balance (manual)</span><span class="num fw-bold">${{ recon.current|floatformat:2|intcomma }}</span></div>
           <div class="qk-recon-eq"><span class="lbl">Online (SimpleFIN)</span><span class="num">${{ recon.online|floatformat:2|intcomma }}</span></div>

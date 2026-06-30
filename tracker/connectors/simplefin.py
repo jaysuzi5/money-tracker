@@ -64,6 +64,7 @@ class SimpleFinConnector:
                     amount=_dec(txn.get('amount')),
                     payee=txn.get('payee') or '',
                     memo=txn.get('description') or txn.get('memo') or '',
+                    pending=bool(txn.get('pending')),
                 ))
             for h in acct.get('holdings', []):
                 symbol = (h.get('symbol') or h.get('description') or '?')[:40]
