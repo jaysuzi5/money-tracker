@@ -1069,13 +1069,15 @@ def networth(request):
     from .models import NetWorthSnapshot
     snaps = list(NetWorthSnapshot.objects.order_by('snapshot_date'))
     rows = []
+    chart = []
     prev = None
     for s in snaps:
         change = (s.net_worth - prev.net_worth) if prev else None
         pct = (float(change) / float(prev.net_worth) * 100) if prev and prev.net_worth else None
         rows.append({'s': s, 'change': change, 'pct': pct})
+        chart.append({'date': s.snapshot_date.isoformat(), 'net_worth': float(s.net_worth),
+                      'change': float(change) if change is not None else 0.0})
         prev = s
-    chart = [{'date': s.snapshot_date.isoformat(), 'net_worth': float(s.net_worth)} for s in snaps]
     rows.reverse()
 
     latest = snaps[-1] if snaps else None
