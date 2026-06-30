@@ -3,7 +3,7 @@
 {% block title %}Portfolio{% endblock %}
 {% block content %}
 <div class="mt-page-header">
-  <div><h1>Portfolio</h1><div class="subtitle">Investment &amp; retirement accounts · net value over time</div></div>
+  <div><h1>Portfolio Overview</h1></div>
   <form method="post" action="{% url 'tracker:portfolio_snapshot' %}" class="d-flex gap-2 align-items-center m-0"
         onsubmit="return confirm('Capture a snapshot of all portfolio accounts for this date?')">{% csrf_token %}
     <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto">
@@ -11,66 +11,64 @@
   </form>
 </div>
 
+{# 1. Total Portfolio #}
+<div class="card mb-4"><div class="card-body text-center py-4">
+  <div class="label text-uppercase small text-secondary fw-semibold">Total Portfolio</div>
+  <div class="display-5 fw-bold num pos">${{ total|floatformat:0|intcomma }}</div>
+</div></div>
+
+{# 2. Breakdown by Tax Treatment #}
+<h6 class="text-secondary text-uppercase small fw-bold mb-2">Breakdown by Tax Treatment</h6>
 <div class="row g-3 mb-4">
-  <div class="col-lg-4">
-    <div class="card stat-card h-100">
-      <div class="label">Total portfolio</div>
-      <div class="value pos num">${{ total|floatformat:0|intcomma }}</div>
+  {% for t in tax_rows %}
+    <div class="col-6 col-lg-2">
+      <div class="card stat-card h-100 {{ t.cls }}">
+        <div class="label">{{ t.label }}</div>
+        <div class="value num" style="font-size:1.25rem">${{ t.total|floatformat:0|intcomma }}</div>
+        <div class="small text-secondary">{{ t.pct|floatformat:1 }}% · {{ t.desc }}</div>
+      </div>
     </div>
-  </div>
-  <div class="col-lg-8">
-    <div class="card h-100"><div class="card-body">
-      <canvas id="trend" height="120"></canvas>
-    </div></div>
-  </div>
+  {% endfor %}
 </div>
 
-<div class="row g-4">
-  <div class="col-lg-6">
-    <div class="card table-card">
-      <div class="card-header"><i class="bi bi-pie-chart me-1"></i> By tax treatment</div>
-      <table class="table">
-        <tbody>
-        {% for t in tax_rows %}
-          <tr><td>{{ t.label }}</td>
-            <td class="text-end text-secondary small">{{ t.pct|floatformat:1 }}%</td>
-            <td class="text-end num fw-semibold">${{ t.total|floatformat:0|intcomma }}</td></tr>
-        {% empty %}<tr><td class="empty-state" colspan="3">Set a tax treatment on accounts (account ⚙️).</td></tr>{% endfor %}
-        </tbody>
-      </table>
+{# 3. Portfolio Performance #}
+<h6 class="text-secondary text-uppercase small fw-bold mb-2">Portfolio Performance (Last 12 Months)</h6>
+<div class="card mb-4"><div class="card-body"><canvas id="trend" height="90"></canvas></div></div>
+
+{# 4. Breakdown by Account Type #}
+<h6 class="text-secondary text-uppercase small fw-bold mb-2">Breakdown by Account Type</h6>
+<div class="row g-3 mb-4">
+  {% for t in type_rows %}
+    <div class="col-6 col-lg-3">
+      <div class="card stat-card h-100">
+        <div class="label">{{ t.label }}</div>
+        <div class="value num" style="font-size:1.25rem">${{ t.total|floatformat:0|intcomma }}</div>
+        <div class="small text-secondary">{{ t.pct|floatformat:1 }}%</div>
+      </div>
     </div>
-  </div>
-  <div class="col-lg-6">
-    <div class="card table-card">
-      <div class="card-header"><i class="bi bi-bank me-1"></i> By account type</div>
-      <table class="table">
-        <tbody>
-        {% for t in type_rows %}
-          <tr><td>{{ t.label }}</td>
-            <td class="text-end text-secondary small">{{ t.pct|floatformat:1 }}%</td>
-            <td class="text-end num fw-semibold">${{ t.total|floatformat:0|intcomma }}</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
+  {% endfor %}
 </div>
 
-<div class="card table-card mt-4">
-  <div class="card-header">Accounts</div>
+{# 5. All Accounts #}
+<h6 class="text-secondary text-uppercase small fw-bold mb-2">All Accounts</h6>
+<div class="card table-card">
   <table class="table table-hover">
-    <thead><tr><th>Account</th><th>Institution</th><th>Type</th><th>Tax</th><th class="text-end">Value</th></tr></thead>
+    <thead><tr><th>Account</th><th>Institution</th><th>Type</th><th>Tax</th><th class="text-end">Balance</th><th></th></tr></thead>
     <tbody>
     {% for r in rows %}
       <tr>
-        <td class="fw-semibold"><a href="{% url 'tracker:dashboard' %}?account={{ r.acct.id }}">{{ r.acct.name }}</a></td>
+        <td class="fw-semibold">{{ r.acct.name }}</td>
         <td class="text-secondary">{{ r.acct.institution.name }}</td>
         <td><span class="badge type-badge">{{ r.acct.get_type_display }}</span></td>
         <td class="small text-secondary">{{ r.acct.get_tax_treatment_display|default:"—" }}</td>
         <td class="text-end num fw-semibold">${{ r.value|floatformat:2|intcomma }}</td>
+        <td class="text-end text-nowrap">
+          <a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'tracker:portfolio_account_history' r.acct.id %}"><i class="bi bi-clock-history"></i> History</a>
+          <a class="btn btn-sm btn-outline-primary py-0" href="{% url 'tracker:dashboard' %}?account={{ r.acct.id }}"><i class="bi bi-list-ul"></i> Account</a>
+        </td>
       </tr>
     {% empty %}
-      <tr><td colspan="5"><div class="empty-state">No portfolio accounts. Mark accounts "in portfolio" via the account ⚙️.</div></td></tr>
+      <tr><td colspan="6"><div class="empty-state">No portfolio accounts. Mark accounts "in portfolio" via the account ⚙️.</div></td></tr>
     {% endfor %}
     </tbody>
   </table>
@@ -84,10 +82,13 @@
   const d = JSON.parse(document.getElementById('trend-data').textContent);
   new Chart(document.getElementById('trend'), {
     type: 'line',
-    data: { labels: d.map(x => x.date), datasets: [{
-      label: 'Portfolio value', data: d.map(x => x.balance),
-      borderColor: '#0e9f6e', backgroundColor: 'rgba(14,159,110,.12)', fill: true, tension: .25, pointRadius: 2 }] },
-    options: { plugins: { legend: { display: false } },
+    data: { labels: d.map(x => x.date), datasets: [
+      { label: 'Portfolio value', data: d.map(x => x.balance),
+        borderColor: '#0e9f6e', backgroundColor: 'rgba(14,159,110,.12)', fill: true, tension: .25, pointRadius: 2 },
+      { label: '$0 draw-down (${{ draw_monthly|floatformat:0|intcomma }}/mo)', data: d.map(x => x.draw),
+        borderColor: '#e11d48', borderDash: [6,4], fill: false, tension: 0, pointRadius: 0 }
+    ] },
+    options: { plugins: { legend: { display: true, labels: { boxWidth: 12 } } },
       scales: { y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
   });
 </script>

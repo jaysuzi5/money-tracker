@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ account.name }} history{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div><h1>{{ account.name }} — snapshot history</h1><div class="subtitle">{{ account.institution.name }} · {{ account.get_tax_treatment_display|default:account.get_type_display }}</div></div>
+  <a href="{% url 'tracker:portfolio' %}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i> Portfolio</a>
+</div>
+
+<div class="card mb-3"><div class="card-body"><canvas id="hist" height="80"></canvas></div></div>
+
+<div class="card table-card">
+  <table class="table table-hover">
+    <thead><tr><th>Date</th><th class="text-end">Balance</th><th>Notes</th></tr></thead>
+    <tbody>
+    {% for s in snaps %}
+      <tr>
+        <td class="text-nowrap">{{ s.snapshot_date|date:"M j, Y" }}</td>
+        <td class="text-end num fw-semibold">${{ s.balance|floatformat:2|intcomma }}</td>
+        <td class="small text-secondary">{{ s.notes }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3"><div class="empty-state">No snapshots for this account yet.</div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{{ chart|json_script:"hist-data" }}
+<script>
+  const d = JSON.parse(document.getElementById('hist-data').textContent);
+  if (d.length) new Chart(document.getElementById('hist'), {
+    type: 'line',
+    data: { labels: d.map(x => x.date), datasets: [{ label: '{{ account.name }}', data: d.map(x => x.balance),
+      borderColor: '#0e9f6e', backgroundColor: 'rgba(14,159,110,.12)', fill: true, tension: .25, pointRadius: 2 }] },
+    options: { plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => '$' + (v/1000).toLocaleString() + 'k' } } } }
+  });
+</script>
+{% endblock %}

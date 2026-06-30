@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 
 from .forms import (AllocationForm, BucketForm, CategoryForm, ReceiptForm,
                     TransferForm, TxnEditForm)
-from .matching import find_candidates, run_matcher
+from .matching import run_matcher
 from .models import (Account, AccountType, BalanceSnapshot, Bucket, BucketEntry,
                      Category, Institution, PropertyEntry, ReconciliationSession,
                      SyncRun, Transaction, TransactionSplit, Transfer, TxnSource,
@@ -83,9 +83,6 @@ def dashboard(request):
         'groups': groups,
         'net_worth': net_worth,
         'portfolio': portfolio,
-        'review_count': Transaction.objects.filter(
-            source=TxnSource.SIMPLEFIN, status=TxnStatus.CLEARED,
-            account__is_reconcilable=True).count(),
     }
 
     bucket_id = request.GET.get('bucket')
@@ -505,41 +502,6 @@ def toggle_clear(request, txn_id):
     _recompute_available(txn.account)
     return redirect(request.META.get('HTTP_REFERER',
                                      reverse('tracker:reconcile', args=[txn.account_id])))
-
-
-@login_required
-def review_queue(request):
-    """Imported bank txns the matcher could not auto-pair, with manual candidates."""
-    imported = Transaction.objects.filter(
-        source=TxnSource.SIMPLEFIN, status=TxnStatus.CLEARED,
-        account__is_reconcilable=True).select_related('account')[:200]
-    rows = [{'imported': t, 'candidates': find_candidates(t)} for t in imported]
-    return render(request, 'tracker/review.html', {'rows': rows})
-
-
-@login_required
-@require_POST
-def match_pair(request):
-    imported = get_object_or_404(Transaction, pk=request.POST['imported_id'],
-                                 source=TxnSource.SIMPLEFIN)
-    manual = get_object_or_404(Transaction, pk=request.POST['manual_id'],
-                               source=TxnSource.MANUAL)
-    if imported.account_id != manual.account_id:
-        messages.error(request, 'Accounts differ; cannot match.')
-    else:
-        from .matching import _merge
-        _merge(manual, imported)
-        messages.success(request, 'Matched.')
-    return redirect(reverse('tracker:review_queue'))
-
-
-@login_required
-@require_POST
-def accept_import(request, txn_id):
-    """Accept an unmatched bank txn as a real (uncategorized) transaction."""
-    get_object_or_404(Transaction, pk=txn_id, source=TxnSource.SIMPLEFIN)
-    messages.info(request, 'Import kept as-is.')
-    return redirect(reverse('tracker:review_queue'))
 
 
 @login_required
@@ -1000,6 +962,17 @@ def restore_qif(request):
     })
 
 
+TAX_META = {
+    'pre_tax': ('401(k), Traditional IRA', 'tt-pretax'),
+    'roth': ('Roth 401(k)/IRA — tax-free', 'tt-roth'),
+    'pension': ('Pension / lump sum', 'tt-pension'),
+    'hsa': ('Triple tax-advantaged', 'tt-hsa'),
+    'taxable': ('Brokerage — capital gains', 'tt-taxable'),
+    'cash': ('Cash / savings', 'tt-cash'),
+}
+DRAWDOWN_MONTHLY = Decimal('4583')  # ~$55k/yr reference drawdown
+
+
 @login_required
 def portfolio(request):
     from .models import PortfolioSnapshot, TaxTreatment
@@ -1019,21 +992,20 @@ def portfolio(request):
         rows.append({'acct': a, 'value': val})
     rows.sort(key=lambda r: r['value'], reverse=True)
 
-    tax_rows = [{'code': k, 'label': lbl, 'total': tax_totals[k],
-                 'pct': (tax_totals[k] / total * 100) if total else 0}
-                for k, lbl in TaxTreatment.choices if tax_totals[k]]
+    tax_rows = [{'label': lbl, 'desc': TAX_META[k][0], 'cls': TAX_META[k][1],
+                 'total': tax_totals[k], 'pct': (tax_totals[k] / total * 100) if total else 0}
+                for k, lbl in TaxTreatment.choices]
     type_rows = sorted(({'label': k, 'total': v,
                          'pct': (v / total * 100) if total else 0}
                         for k, v in type_totals.items()),
                        key=lambda x: x['total'], reverse=True)
 
-    # trend from PortfolioSnapshot: for each snapshot date, sum each account's
-    # most-recent snapshot on/before that date
+    # trend (last 12 months): for each snapshot date, sum each account's most-recent balance
     acct_ids = [a.id for a in accounts]
-    dates = list(PortfolioSnapshot.objects.filter(account_id__in=acct_ids)
-                 .values_list('snapshot_date', flat=True).distinct().order_by('snapshot_date'))
+    start = timezone.now().date() - timedelta(days=366)
     snaps = list(PortfolioSnapshot.objects.filter(account_id__in=acct_ids)
                  .values('account_id', 'snapshot_date', 'balance').order_by('snapshot_date'))
+    dates = sorted({s['snapshot_date'] for s in snaps if s['snapshot_date'] >= start})
     series = []
     for d in dates:
         latest = {}
@@ -1041,10 +1013,28 @@ def portfolio(request):
             if s['snapshot_date'] <= d:
                 latest[s['account_id']] = s['balance']
         series.append({'date': d.isoformat(), 'balance': float(sum(latest.values(), Decimal('0')))})
+    # $X/mo linear drawdown reference line, anchored at the first point
+    if series:
+        base = series[0]['balance']
+        for i, pt in enumerate(series):
+            pt['draw'] = max(0.0, base - float(DRAWDOWN_MONTHLY) * i)
 
     return render(request, 'tracker/portfolio.html', {
         'total': total, 'tax_rows': tax_rows, 'type_rows': type_rows,
         'rows': rows, 'chart': series, 'today': timezone.now().date(),
+        'draw_monthly': DRAWDOWN_MONTHLY,
+    })
+
+
+@login_required
+def portfolio_account_history(request, account_id):
+    from .models import PortfolioSnapshot
+    account = get_object_or_404(Account, pk=account_id)
+    snaps = list(account.portfolio_snapshots.order_by('-snapshot_date'))
+    chart = [{'date': s.snapshot_date.isoformat(), 'balance': float(s.balance)}
+             for s in reversed(snaps)]
+    return render(request, 'tracker/portfolio_history.html', {
+        'account': account, 'snaps': snaps, 'chart': chart,
     })
 
 
