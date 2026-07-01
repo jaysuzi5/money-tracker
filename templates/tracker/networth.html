@@ -53,7 +53,7 @@
     {% for r in rows %}
       <tr>
         <td class="text-nowrap fw-semibold">{{ r.s.snapshot_date|date:"M j, Y" }}</td>
-        <td class="text-end num fw-semibold">${{ r.s.net_worth|floatformat:2|intcomma }}</td>
+        <td class="text-end num fw-semibold">${{ r.s.net_worth|floatformat:0|intcomma }}</td>
         <td class="text-end num {% if r.change and r.change >= 0 %}amount-pos{% elif r.change %}amount-neg{% endif %}">
           {% if r.change != None %}{% if r.change >= 0 %}+{% endif %}${{ r.change|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
         <td class="text-end num small {% if r.pct and r.pct >= 0 %}amount-pos{% elif r.pct %}amount-neg{% else %}text-secondary{% endif %}">

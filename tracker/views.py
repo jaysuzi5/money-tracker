@@ -1130,6 +1130,17 @@ def portfolio(request):
                 latest[s['account_id']] = s['balance']
         series.append({'date': d.isoformat(), 'balance': float(sum(latest.values(), Decimal('0')))})
 
+    # +/- history table (newest first), with month-over-month change
+    perf_rows = []
+    prev = None
+    for pt, d in zip(series, dates):
+        bal = Decimal(str(pt['balance']))
+        change = (bal - prev) if prev is not None else None
+        pct = (float(change) / float(prev) * 100) if prev else None
+        perf_rows.append({'date': d, 'balance': bal, 'change': change, 'pct': pct})
+        prev = bal
+    perf_rows.reverse()
+
     # drawdown reference (category axis): null before retirement, then linear $DRAWDOWN_MONTHLY/mo.
     # aligned 1:1 with the chart labels so it starts at the retirement snapshot.
     anchor_map = {}
@@ -1146,7 +1157,7 @@ def portfolio(request):
             draw.append(max(0.0, anchor - float(DRAWDOWN_MONTHLY) * months))
 
     return render(request, 'tracker/portfolio.html', {
-        'total': total, 'tax_rows': tax_rows,
+        'total': total, 'tax_rows': tax_rows, 'perf_rows': perf_rows,
         'rows': rows, 'chart': series, 'draw': draw, 'today': timezone.now().date(),
         'draw_monthly': DRAWDOWN_MONTHLY, 'retirement': RETIREMENT_DATE,
     })
