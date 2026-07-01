@@ -1192,35 +1192,54 @@ def portfolio_snapshot(request):
 
 @login_required
 def networth(request):
-    from .models import NetWorthSnapshot
+    from .models import NetWorthSnapshot, PortfolioSnapshot, AccountType
     snaps = list(NetWorthSnapshot.objects.order_by('snapshot_date'))
+
+    # portfolio value as-of any date (sum each portfolio account's most-recent snapshot <= date)
+    pfid = list(Account.objects.filter(is_active=True, in_portfolio=True).values_list('id', flat=True))
+    psnaps = list(PortfolioSnapshot.objects.filter(account_id__in=pfid)
+                  .values('account_id', 'snapshot_date', 'balance').order_by('snapshot_date'))
+
+    def portfolio_as_of(d):
+        latest = {}
+        for ps in psnaps:
+            if ps['snapshot_date'] <= d:
+                latest[ps['account_id']] = ps['balance']
+        return sum(latest.values(), Decimal('0'))
+
     rows = []
     chart = []
     prev = None
     for s in snaps:
         change = (s.net_worth - prev.net_worth) if prev else None
         pct = (float(change) / float(prev.net_worth) * 100) if prev and prev.net_worth else None
-        rows.append({'s': s, 'change': change, 'pct': pct})
+        pcol = portfolio_as_of(s.snapshot_date)
+        rows.append({'s': s, 'change': change, 'pct': pct,
+                     'portfolio': pcol, 'property': s.net_worth - pcol,
+                     'other': Decimal('0')})
         chart.append({'date': s.snapshot_date.isoformat(), 'net_worth': float(s.net_worth),
                       'change': float(change) if change is not None else 0.0})
         prev = s
     rows.reverse()
 
     latest = snaps[-1] if snaps else None
-    oldest = snaps[0] if snaps else None
-    total_change = (latest.net_worth - oldest.net_worth) if latest and oldest else None
-    total_pct = (float(total_change) / float(oldest.net_worth) * 100) if total_change and oldest.net_worth else None
     cur_year = timezone.now().year
     yr = [s for s in snaps if s.snapshot_date.year == cur_year]
     ytd_change = (yr[-1].net_worth - yr[0].net_worth) if len(yr) >= 2 else None
     ytd_pct = (float(ytd_change) / float(yr[0].net_worth) * 100) if ytd_change and yr[0].net_worth else None
 
-    _, current_nw, _ = _grouped_accounts()
+    # live breakdown (sums to current net worth)
+    active = list(Account.objects.filter(is_active=True))
+    portfolio_now = sum((a.online_balance or Decimal('0') for a in active if a.in_portfolio), Decimal('0'))
+    property_now = sum((a.online_balance or Decimal('0') for a in active if a.type == AccountType.PROPERTY), Decimal('0'))
+    current_nw = sum((a.online_balance or Decimal('0') for a in active), Decimal('0'))
+    other_now = current_nw - portfolio_now - property_now
+
     return render(request, 'tracker/networth.html', {
         'rows': rows, 'chart': chart, 'latest': latest, 'count': len(snaps),
-        'total_change': total_change, 'total_pct': total_pct,
         'ytd_change': ytd_change, 'ytd_pct': ytd_pct, 'cur_year': cur_year,
         'current_nw': current_nw, 'today': timezone.now().date(),
+        'portfolio_now': portfolio_now, 'property_now': property_now, 'other_now': other_now,
     })
 
 
