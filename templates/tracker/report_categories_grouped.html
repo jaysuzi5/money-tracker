@@ -3,7 +3,7 @@
 {% block title %}Category report{% endblock %}
 {% block content %}
 <div class="mt-page-header">
-  <h1>Category report</h1>
+  <h1>Category Report</h1>
   <a href="{% url 'tracker:reports' %}" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i> Reports</a>
 </div>
 
@@ -47,6 +47,22 @@
     </span>
   </form>
 </div>
+
+{% if charts.mode == 'overview' %}
+<div class="card mb-3"><div class="card-body">
+  <h6 class="text-secondary text-uppercase small fw-bold mb-2">Income vs Expenses</h6>
+  <canvas id="chart-ie" height="90"></canvas>
+</div></div>
+<div class="card mb-3"><div class="card-body">
+  <h6 class="text-secondary text-uppercase small fw-bold mb-2">By Category</h6>
+  <canvas id="chart-cat" height="110"></canvas>
+</div></div>
+{% elif charts.mode == 'limited' %}
+<div class="card mb-3"><div class="card-body">
+  <h6 class="text-secondary text-uppercase small fw-bold mb-2">{{ charts.sub.title }}</h6>
+  <canvas id="chart-sub" height="110"></canvas>
+</div></div>
+{% endif %}
 
 <div class="card table-card rpt-pivot-wrap">
   <table class="table rpt-pivot">
@@ -96,7 +112,35 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{{ charts|json_script:"chart-data" }}
 <script>
+  const CH = JSON.parse(document.getElementById('chart-data').textContent);
+  const PALETTE = ['#0e9f6e','#e11d48','#2563eb','#d97706','#7c3aed','#0891b2','#eab308','#db2777',
+    '#65a30d','#f97316','#4f46e5','#059669','#dc2626','#0284c7','#ca8a04','#9333ea'];
+  const money = v => '$' + (v/1000).toLocaleString() + 'k';
+  function lineChart(id, labels, series, fillFirst) {
+    const el = document.getElementById(id);
+    if (!el || !series.length) return;
+    new Chart(el, {
+      type: 'line',
+      data: { labels: labels, datasets: series.map((s, i) => ({
+        label: s.name, data: s.data,
+        borderColor: PALETTE[i % PALETTE.length],
+        backgroundColor: (fillFirst ? PALETTE[i % PALETTE.length] + '22' : 'transparent'),
+        fill: fillFirst, tension: .25, pointRadius: 2, borderWidth: 2 })) },
+      options: { plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 11 } } } },
+        interaction: { mode: 'index', intersect: false },
+        scales: { y: { ticks: { callback: money } } } }
+    });
+  }
+  if (CH.mode === 'overview') {
+    lineChart('chart-ie', CH.labels, CH.ie, true);
+    lineChart('chart-cat', CH.labels, CH.cats, false);
+  } else if (CH.mode === 'limited') {
+    lineChart('chart-sub', CH.labels, CH.sub.series, false);
+  }
+
   document.querySelectorAll('.rpt-pivot-row.has-kids').forEach(row => row.addEventListener('click', e => {
     if (e.target.closest('a')) return;
     const k = row.dataset.kids;

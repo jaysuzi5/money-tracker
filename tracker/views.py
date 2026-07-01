@@ -1026,12 +1026,32 @@ def _report_categories_grouped(request, roots, start, end, preset,
     ]
     net_cols = [a + b for a, b in zip(sections[0]['col_totals'], sections[1]['col_totals'])]
 
+    # chart payloads
+    fl = lambda vals: [float(v) for v in vals]
+    labels = [lbl for _, lbl in col_labels]
+    if selected:
+        # limited to specific categories -> one chart of all subcategories
+        sub = [{'name': ch['cat'].name, 'data': fl(ch['vals'])}
+               for sec in sections for r in sec['rows'] for ch in r['children']]
+        if not sub:  # roots without children -> plot the roots themselves
+            sub = [{'name': r['cat'].name, 'data': fl(r['vals'])}
+                   for sec in sections for r in sec['rows']]
+        charts = {'mode': 'limited', 'labels': labels,
+                  'sub': {'title': 'Subcategories over time', 'series': sub}}
+    else:
+        ie = [{'name': 'Income', 'data': fl(sections[0]['col_totals'])},
+              {'name': 'Expenses', 'data': fl(sections[1]['col_totals'])}]
+        cats = [{'name': r['cat'].name, 'data': fl(r['vals'])}
+                for sec in sections for r in sec['rows']]
+        charts = {'mode': 'overview', 'labels': labels, 'ie': ie, 'cats': cats}
+
     return render(request, 'tracker/report_categories_grouped.html', {
         'sections': sections, 'col_labels': col_labels, 'ncols': len(columns),
         'net_cols': net_cols, 'net_total': sections[0]['total'] + sections[1]['total'],
         'preset': preset, 'start': start or '', 'end': end or '',
         'all_roots': Category.objects.filter(parent__isnull=True).order_by('name'),
         'selected': selected, 'include_transfers': include_transfers, 'group': group,
+        'charts': charts,
     })
 
 
