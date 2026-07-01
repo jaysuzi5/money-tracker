@@ -1214,9 +1214,13 @@ def networth(request):
         change = (s.net_worth - prev.net_worth) if prev else None
         pct = (float(change) / float(prev.net_worth) * 100) if prev and prev.net_worth else None
         pcol = portfolio_as_of(s.snapshot_date)
+        if pcol > 0:  # has portfolio history
+            prop = s.net_worth - pcol
+        else:         # no history -> static property, portfolio = remainder
+            prop = Decimal('723046')
+            pcol = s.net_worth - prop
         rows.append({'s': s, 'change': change, 'pct': pct,
-                     'portfolio': pcol, 'property': s.net_worth - pcol,
-                     'other': Decimal('0')})
+                     'portfolio': pcol, 'property': prop, 'other': Decimal('0')})
         chart.append({'date': s.snapshot_date.isoformat(), 'net_worth': float(s.net_worth),
                       'change': float(change) if change is not None else 0.0})
         prev = s

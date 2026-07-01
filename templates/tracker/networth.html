@@ -21,27 +21,27 @@
 {# Breakdown by Category #}
 <h6 class="text-secondary text-uppercase small fw-bold mb-2">Breakdown by Category</h6>
 <div class="row row-cols-2 row-cols-lg-5 g-3 mb-4">
-  <div class="col"><div class="card stat-card h-100">
+  <div class="col"><div class="card stat-card h-100 tt-roth">
     <div class="label">Portfolio</div>
     <div class="value num" style="font-size:1.25rem">${{ portfolio_now|floatformat:0|intcomma }}</div>
     <div class="small text-secondary">investment accounts</div>
   </div></div>
-  <div class="col"><div class="card stat-card h-100">
+  <div class="col"><div class="card stat-card h-100 tt-pension">
     <div class="label">Property</div>
     <div class="value num" style="font-size:1.25rem">${{ property_now|floatformat:0|intcomma }}</div>
     <div class="small text-secondary">home, vehicles</div>
   </div></div>
-  <div class="col"><div class="card stat-card h-100">
+  <div class="col"><div class="card stat-card h-100 tt-cash">
     <div class="label">Other</div>
     <div class="value num {% if other_now < 0 %}neg{% endif %}" style="font-size:1.25rem">${{ other_now|floatformat:0|intcomma }}</div>
     <div class="small text-secondary">cash less card debt</div>
   </div></div>
-  <div class="col"><div class="card stat-card h-100">
+  <div class="col"><div class="card stat-card h-100 tt-hsa">
     <div class="label">Latest Snapshot</div>
     <div class="value num" style="font-size:1.25rem">{% if latest %}${{ latest.net_worth|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
     <div class="small text-secondary">{% if latest %}{{ latest.snapshot_date|date:"M j, Y" }}{% else %}no snapshots{% endif %}</div>
   </div></div>
-  <div class="col"><div class="card stat-card h-100">
+  <div class="col"><div class="card stat-card h-100 tt-pretax">
     <div class="label">{{ cur_year }} YTD</div>
     <div class="value num {% if ytd_change and ytd_change >= 0 %}pos{% elif ytd_change %}neg{% endif %}" style="font-size:1.25rem">
       {% if ytd_change != None %}{% if ytd_change >= 0 %}+{% endif %}${{ ytd_change|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
