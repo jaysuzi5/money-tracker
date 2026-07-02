@@ -27,6 +27,7 @@
         <li class="nav-item"><a class="nav-link {% if url_name == 'portfolio' %}active{% endif %}" href="{% url 'tracker:portfolio' %}"><i class="bi bi-graph-up-arrow"></i> Portfolio</a></li>
         <li class="nav-item"><a class="nav-link {% if url_name == 'networth' %}active{% endif %}" href="{% url 'tracker:networth' %}"><i class="bi bi-clipboard-data"></i> Net Worth</a></li>
         <li class="nav-item"><a class="nav-link {% if url_name == 'reports' %}active{% endif %}" href="{% url 'tracker:reports' %}"><i class="bi bi-bar-chart-line"></i> Reports</a></li>
+        <li class="nav-item"><a class="nav-link {% if url_name == 'agent' %}active{% endif %}" href="{% url 'tracker:agent' %}"><i class="bi bi-robot"></i> Ask</a></li>
         <li class="nav-item"><a class="nav-link {% if url_name == 'buckets' %}active{% endif %}" href="{% url 'tracker:buckets' %}"><i class="bi bi-piggy-bank"></i> Buckets</a></li>
         <li class="nav-item"><a class="nav-link {% if url_name == 'categories' %}active{% endif %}" href="{% url 'tracker:categories' %}"><i class="bi bi-tags"></i> Categories</a></li>
       </ul>

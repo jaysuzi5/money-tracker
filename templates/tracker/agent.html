@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Ask{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div><h1>Ask about your money</h1><div class="subtitle">Natural-language questions about your accounts, spending, and history.</div></div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <div id="agent-log" class="agent-log"></div>
+  <div id="agent-suggest" class="d-flex flex-wrap gap-2 mb-2">
+    <button class="btn btn-sm btn-outline-secondary agent-eg">How much did I spend on groceries last year?</button>
+    <button class="btn btn-sm btn-outline-secondary agent-eg">What's my total net worth?</button>
+    <button class="btn btn-sm btn-outline-secondary agent-eg">Top 5 spending categories this year</button>
+    <button class="btn btn-sm btn-outline-secondary agent-eg">How much did I pay in interest last month?</button>
+  </div>
+  <form id="agent-form" class="d-flex gap-2 m-0">
+    <input id="agent-input" class="form-control" placeholder="Ask a question…" autocomplete="off" required>
+    <button class="btn btn-primary" id="agent-send"><i class="bi bi-send"></i></button>
+  </form>
+</div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const log = document.getElementById('agent-log');
+  const form = document.getElementById('agent-form');
+  const input = document.getElementById('agent-input');
+  const sendBtn = document.getElementById('agent-send');
+  const history = [];
+  const csrf = '{{ csrf_token }}';
+
+  function bubble(role, text) {
+    const el = document.createElement('div');
+    el.className = 'agent-msg agent-' + role;
+    el.textContent = text;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return el;
+  }
+
+  async function ask(q) {
+    bubble('user', q);
+    history.push({role: 'user', content: q});
+    input.value = '';
+    sendBtn.disabled = true;
+    const thinking = bubble('assistant', '…');
+    try {
+      const r = await fetch('{% url "tracker:agent_chat" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({messages: history}),
+      });
+      const data = await r.json();
+      const reply = data.error ? ('⚠ ' + data.error) : (data.reply || '(no answer)');
+      thinking.textContent = reply;
+      if (!data.error && data.reply) history.push({role: 'assistant', content: data.reply});
+    } catch (e) {
+      thinking.textContent = '⚠ ' + e;
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  form.addEventListener('submit', e => { e.preventDefault(); const q = input.value.trim(); if (q) ask(q); });
+  document.querySelectorAll('.agent-eg').forEach(b => b.addEventListener('click', () => ask(b.textContent)));
+</script>
+{% endblock %}

@@ -1191,6 +1191,26 @@ def portfolio_snapshot(request):
 
 
 @login_required
+def agent_page(request):
+    return render(request, 'tracker/agent.html', {})
+
+
+@login_required
+@require_POST
+def agent_chat(request):
+    import json as _json
+    from django.http import JsonResponse
+    from .agent import answer_question
+    try:
+        payload = _json.loads(request.body or '{}')
+        history = payload.get('messages') or []
+    except Exception:
+        history = []
+    result = answer_question(history)
+    return JsonResponse({'reply': result.get('reply') or '', 'error': result.get('error')})
+
+
+@login_required
 def networth(request):
     from .models import NetWorthSnapshot, PortfolioSnapshot, AccountType
     snaps = list(NetWorthSnapshot.objects.order_by('snapshot_date'))

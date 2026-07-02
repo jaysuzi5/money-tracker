@@ -471,3 +471,10 @@ table.qk-table .num { text-align: right; font-variant-numeric: tabular-nums; whi
 [data-theme="dark"] .rpt-pivot-row:hover td,
 [data-theme="dark"] .rpt-pivot-row:hover .rpt-pivot-cat { background: #1d2837; }
 [data-theme="dark"] .rpt-pivot-cat a { color: var(--mt-ink); }
+
+/* ===== Finance agent chat ===== */
+.agent-log { max-height: 460px; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; margin-bottom: .75rem; }
+.agent-msg { padding: .55rem .8rem; border-radius: 12px; max-width: 82%; white-space: pre-wrap; line-height: 1.4; font-size: .9rem; }
+.agent-user { align-self: flex-end; background: var(--mt-primary); color: #fff; border-bottom-right-radius: 3px; }
+.agent-assistant { align-self: flex-start; background: #eef3fb; color: var(--mt-ink); border-bottom-left-radius: 3px; }
+[data-theme="dark"] .agent-assistant { background: #1d2837; }
