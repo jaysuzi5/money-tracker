@@ -74,7 +74,7 @@ DATABASES = {
 }
 # homelab-hub Postgres — real-time agent-log mirror into its dashboard_agentcall table.
 if HOMELAB_AGENT_DB_URL:
-    DATABASES['homelab'] = environ.Env.db_url(HOMELAB_AGENT_DB_URL)
+    DATABASES['homelab'] = env.db_url_config(HOMELAB_AGENT_DB_URL)
     DATABASE_ROUTERS = ['config.dbrouters.HomelabRouter']
 
 AUTH_PASSWORD_VALIDATORS = [
