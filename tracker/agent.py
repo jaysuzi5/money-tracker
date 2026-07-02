@@ -51,13 +51,13 @@ already negative. This equals the figure on the Net Worth and dashboard pages.
 - The latest saved Net Worth snapshot is the newest row in tracker_networthsnapshot \
 (net_worth column); "current"/"live" net worth is the SUM(online_balance) above.
 
-Guidance for spend questions (e.g. "how much did I spend on groceries last year"):
-- Amounts are signed; spending is negative. Report spend as a positive dollar figure \
-(use ABS or SUM then negate) and say which category/period.
-- Match a category by name (case-insensitive) and INCLUDE its subcategories \
-(parent_id = the category id). A transaction counts if its category_id is the category \
-or any of its children, OR it has a split row under them.
-- "last year" = the previous calendar year relative to today.
+Spend questions (e.g. "how much did I spend on groceries last year"):
+- ALWAYS use the category_spend tool. Do NOT write SQL for category spend — a raw \
+SUM(amount) over tracker_transaction MISSES split transactions and gives wrong totals. \
+category_spend is splits-aware and includes subcategories, matching the Category Report.
+- Pass year=YYYY for a full calendar year ("last year" = previous calendar year, "this \
+year" = current year), or start/end (end EXCLUSIVE) for custom ranges.
+- Report the 'spend' field as a positive dollar figure and name the category and period.
 
 Be concise and factual. Lead with the answer (a dollar amount and the period). If you \
 lack data, say so rather than guessing. Keep SQL to simple read-only SELECTs."""
@@ -122,13 +122,69 @@ def _tool_run_sql(args):
         return {"error": str(e)}
 
 
+def _tool_category_spend(args):
+    """Splits-aware net + spend for a category (and its subcategories) over [start, end).
+    Mirrors the Category Report exactly. Prefer this over run_sql for spend questions."""
+    from decimal import Decimal
+    from django.db.models import Sum
+    from .models import Category, Transaction, TransactionSplit
+    a = args or {}
+    name = (a.get("category") or "").strip()
+    if not name:
+        return {"error": "category is required"}
+    cat = (Category.objects.filter(name__iexact=name).first()
+           or Category.objects.filter(name__icontains=name).order_by("parent_id").first())
+    if not cat:
+        return {"error": f"No category matching '{name}'."}
+    # descendant ids (this category + all children, recursively)
+    ids, stack = [cat.id], list(cat.children.all())
+    while stack:
+        c = stack.pop()
+        ids.append(c.id)
+        stack.extend(c.children.all())
+
+    start, end, year = a.get("start"), a.get("end"), a.get("year")
+    if year and not start and not end:
+        start, end = f"{int(year)}-01-01", f"{int(year) + 1}-01-01"
+
+    direct = Transaction.objects.filter(category_id__in=ids, splits__isnull=True)
+    split = TransactionSplit.objects.filter(category_id__in=ids)
+    if start:
+        direct = direct.filter(date__gte=start)
+        split = split.filter(transaction__date__gte=start)
+    if end:  # end-exclusive, like the report
+        direct = direct.filter(date__lt=end)
+        split = split.filter(transaction__date__lt=end)
+    net = (direct.aggregate(s=Sum("amount"))["s"] or Decimal("0")) + \
+          (split.aggregate(s=Sum("amount"))["s"] or Decimal("0"))
+    return {
+        "category": cat.name,
+        "included_subcategories": [Category.objects.get(id=i).name for i in ids],
+        "start": start, "end": end,
+        "net": float(net),                    # signed (spend is negative)
+        "spend": float(-net) if net < 0 else 0.0,   # positive dollars spent
+        "income": float(net) if net > 0 else 0.0,
+    }
+
+
 _TOOLS = {
+    "category_spend": _tool_category_spend,
     "list_tables": _tool_list_tables,
     "describe_table": _tool_describe_table,
     "run_sql": _tool_run_sql,
 }
 
 _TOOL_SPECS = [
+    {"type": "function", "function": {
+        "name": "category_spend",
+        "description": "Splits-aware total spend/income for a category and ALL its subcategories over a date range. Matches the Category Report exactly. ALWAYS use this for 'how much did I spend on <category>' questions instead of run_sql — raw SUM(amount) misses split transactions. Returns net (signed), spend (positive dollars), and the subcategories included.",
+        "parameters": {"type": "object", "properties": {
+            "category": {"type": "string", "description": "Category name, e.g. 'Groceries' (case-insensitive; subcategories are included automatically)"},
+            "year": {"type": "integer", "description": "Calendar year, e.g. 2025. Convenience for a full year."},
+            "start": {"type": "string", "description": "Start date YYYY-MM-DD, inclusive (overrides year)."},
+            "end": {"type": "string", "description": "End date YYYY-MM-DD, EXCLUSIVE (overrides year)."},
+        }, "required": ["category"]},
+    }},
     {"type": "function", "function": {
         "name": "list_tables",
         "description": "List all tables in the application PostgreSQL database (public schema).",
