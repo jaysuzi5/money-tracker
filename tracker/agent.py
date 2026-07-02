@@ -42,6 +42,15 @@ tax_treatment, institution_id, is_active.
 split across multiple categories).
 - tracker_portfoliosnapshot / tracker_networthsnapshot: point-in-time balances.
 
+Net worth / totals — match the app's pages exactly:
+- NET WORTH = SUM(online_balance) over active accounts (tracker_account WHERE is_active = true). \
+Use online_balance, NOT current_balance, and NOT current_balance summed. Credit cards are \
+already negative. This equals the figure on the Net Worth and dashboard pages.
+- PORTFOLIO total = SUM(online_balance) over active accounts WHERE in_portfolio = true.
+- PROPERTY total = SUM(online_balance) over active accounts WHERE type = 'property'.
+- The latest saved Net Worth snapshot is the newest row in tracker_networthsnapshot \
+(net_worth column); "current"/"live" net worth is the SUM(online_balance) above.
+
 Guidance for spend questions (e.g. "how much did I spend on groceries last year"):
 - Amounts are signed; spending is negative. Report spend as a positive dollar figure \
 (use ABS or SUM then negate) and say which category/period.
