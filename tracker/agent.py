@@ -8,7 +8,7 @@ import re
 import time
 
 from django.conf import settings
-from django.db import connection
+from django.db import connection, connections
 
 _log = logging.getLogger("tracker.agent")
 
@@ -156,10 +156,12 @@ def _serialize(obj):
 
 
 def _record(question, result, rounds, trace, duration_ms):
-    """Persist the conversation locally. homelab-hub pulls these via the agent-calls API."""
+    """Persist locally, then mirror in real time into homelab-hub's dashboard_agentcall
+    (if configured) so the hub telemetry page shows it the instant the call finishes."""
+    local_id = None
     try:
         from .models import AgentCall
-        AgentCall.objects.create(
+        call = AgentCall.objects.create(
             question=question or "",
             reply=result.get("reply") or "",
             error=result.get("error") or "",
@@ -167,8 +169,26 @@ def _record(question, result, rounds, trace, duration_ms):
             tool_calls=trace,
             duration_ms=duration_ms,
         )
+        local_id = call.id
     except Exception:
         _log.exception("failed to persist AgentCall")
+
+    if "homelab" not in connections.databases:
+        return
+    from django.utils import timezone
+    try:
+        with connections["homelab"].cursor() as cur:
+            cur.execute(
+                "INSERT INTO dashboard_agentcall "
+                "(created_at, source, source_id, question, reply, error, rounds, tool_calls, duration_ms) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "ON CONFLICT (source, source_id) DO NOTHING",
+                [timezone.now(), "money-tracker", local_id, question or "",
+                 result.get("reply") or "", result.get("error") or "",
+                 rounds, _serialize(trace), duration_ms],
+            )
+    except Exception:
+        _log.exception("failed to mirror AgentCall to homelab-hub")
 
 
 def answer_question(history):
