@@ -253,7 +253,12 @@ def answer_question(history):
     if client is None:
         return {"reply": "", "error": "Agent is not configured (missing GROQ_API_KEY)."}
 
-    messages = [{"role": "system", "content": _SYSTEM_PROMPT}]
+    from django.utils import timezone
+    today = timezone.localdate()
+    dated = (f"{_SYSTEM_PROMPT}\n\nToday's date is {today.isoformat()}. "
+             f"'This year' = {today.year}; 'last year' = {today.year - 1}; "
+             f"'last month' and other relative periods are relative to this date.")
+    messages = [{"role": "system", "content": dated}]
     for turn in history[-12:]:
         role = turn.get("role")
         content = turn.get("content", "")
