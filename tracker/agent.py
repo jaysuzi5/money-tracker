@@ -8,8 +8,7 @@ import re
 import time
 
 from django.conf import settings
-from django.db import connection, connections
-from django.utils import timezone
+from django.db import connection
 
 _log = logging.getLogger("tracker.agent")
 
@@ -148,24 +147,19 @@ def _serialize(obj):
 
 
 def _record(question, result, rounds, trace, duration_ms):
-    """Persist the conversation to homelab-hub's dashboard_agentcall table so the hub
-    Telemetry page shows it. Falls back to app logs if the homelab DB isn't configured."""
-    if "homelab" not in connections.databases:
-        _log.info("agent call (no homelab DB): rounds=%d dur=%dms q=%r",
-                  rounds, duration_ms, (question or "")[:120])
-        return
+    """Persist the conversation locally. homelab-hub pulls these via the agent-calls API."""
     try:
-        with connections["homelab"].cursor() as cur:
-            cur.execute(
-                "INSERT INTO dashboard_agentcall "
-                "(created_at, question, reply, error, rounds, tool_calls, duration_ms) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                [timezone.now(), f"[money-tracker] {question or ''}",
-                 result.get("reply") or "", result.get("error") or "",
-                 rounds, _serialize(trace), duration_ms],
-            )
+        from .models import AgentCall
+        AgentCall.objects.create(
+            question=question or "",
+            reply=result.get("reply") or "",
+            error=result.get("error") or "",
+            rounds=rounds,
+            tool_calls=trace,
+            duration_ms=duration_ms,
+        )
     except Exception:
-        _log.exception("failed to persist AgentCall to homelab DB")
+        _log.exception("failed to persist AgentCall")
 
 
 def answer_question(history):

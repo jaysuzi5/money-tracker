@@ -18,9 +18,10 @@ FERNET_KEY = env('FERNET_KEY', default='')
 # SimpleFIN Bridge access URL (one-time setup token exchanged for an access URL)
 SIMPLEFIN_ACCESS_URL = env('SIMPLEFIN_ACCESS_URL', default='')
 
-# Finance agent (Groq-backed chat). Optional homelab-hub DB for shared AgentCall logging.
+# Finance agent (Groq-backed chat). Conversations stored locally (tracker.AgentCall)
+# and exposed read-only via /api/agent-calls/ (bearer token) for homelab-hub to pull.
 GROQ_API_KEY = env('GROQ_API_KEY', default='')
-HOMELAB_AGENT_DB_URL = env('HOMELAB_AGENT_DB_URL', default='')
+AGENT_LOG_TOKEN = env('AGENT_LOG_TOKEN', default='')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -68,10 +69,6 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': env.db('DATABASE_URL', default='sqlite:///' + os.path.join(BASE_DIR, 'db.sqlite3')),
 }
-# homelab-hub Postgres (read/write to its dashboard_agentcall table) for shared agent logging
-if HOMELAB_AGENT_DB_URL:
-    DATABASES['homelab'] = environ.Env.db_url(HOMELAB_AGENT_DB_URL)
-    DATABASE_ROUTERS = ['config.dbrouters.HomelabRouter']
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},

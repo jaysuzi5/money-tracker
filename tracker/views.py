@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 
 from .forms import (AllocationForm, BucketForm, CategoryForm, ReceiptForm,
                     TransferForm, TxnEditForm)
@@ -1208,6 +1209,38 @@ def agent_chat(request):
         history = []
     result = answer_question(history)
     return JsonResponse({'reply': result.get('reply') or '', 'error': result.get('error')})
+
+
+@csrf_exempt
+def agent_calls_api(request):
+    """Read-only JSON feed of finance-agent conversations for homelab-hub telemetry.
+    Auth: 'Authorization: Bearer <AGENT_LOG_TOKEN>'. Params: limit (<=500), since (ISO)."""
+    from django.conf import settings
+    from django.http import JsonResponse
+    from .models import AgentCall
+    token = settings.AGENT_LOG_TOKEN
+    if not token:
+        return JsonResponse({'error': 'agent log API not configured'}, status=503)
+    auth = request.headers.get('Authorization', '')
+    provided = auth[7:] if auth.startswith('Bearer ') else request.GET.get('token', '')
+    if provided != token:
+        return JsonResponse({'error': 'unauthorized'}, status=401)
+
+    qs = AgentCall.objects.all()
+    since = request.GET.get('since')
+    if since:
+        qs = qs.filter(created_at__gt=since)
+    try:
+        limit = min(int(request.GET.get('limit', 100)), 500)
+    except ValueError:
+        limit = 100
+    calls = [{
+        'id': c.id, 'source': 'money-tracker',
+        'created_at': c.created_at.isoformat(),
+        'question': c.question, 'reply': c.reply, 'error': c.error,
+        'rounds': c.rounds, 'tool_calls': c.tool_calls, 'duration_ms': c.duration_ms,
+    } for c in qs[:limit]]
+    return JsonResponse({'calls': calls})
 
 
 @login_required

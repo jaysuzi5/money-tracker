@@ -41,6 +41,7 @@ urlpatterns = [
     path('portfolio/account/<int:account_id>/history/', views.portfolio_account_history, name='portfolio_account_history'),
     path('agent/', views.agent_page, name='agent'),
     path('agent/chat/', views.agent_chat, name='agent_chat'),
+    path('api/agent-calls/', views.agent_calls_api, name='agent_calls_api'),
     path('networth/', views.networth, name='networth'),
     path('networth/capture/', views.networth_capture, name='networth_capture'),
     path('networth/<int:pk>/update/', views.networth_update, name='networth_update'),

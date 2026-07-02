@@ -82,6 +82,14 @@ class PortfolioSnapshotAdmin(admin.ModelAdmin):
     date_hierarchy = 'snapshot_date'
 
 
+@admin.register(models.AgentCall)
+class AgentCallAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'question', 'rounds', 'duration_ms', 'error')
+    list_filter = ('created_at',)
+    search_fields = ('question', 'reply')
+    date_hierarchy = 'created_at'
+
+
 @admin.register(models.NetWorthSnapshot)
 class NetWorthSnapshotAdmin(admin.ModelAdmin):
     list_display = ('snapshot_date', 'net_worth', 'notes')
