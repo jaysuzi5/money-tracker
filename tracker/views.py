@@ -1309,12 +1309,14 @@ def networth(request):
     property_now = sum((a.online_balance or Decimal('0') for a in active if a.type == AccountType.PROPERTY), Decimal('0'))
     current_nw = sum((a.online_balance or Decimal('0') for a in active), Decimal('0'))
     other_now = current_nw - portfolio_now - property_now
+    snap_change = (current_nw - latest.net_worth) if latest else None
 
     return render(request, 'tracker/networth.html', {
         'rows': rows, 'chart': chart, 'latest': latest, 'count': len(snaps),
         'ytd_change': ytd_change, 'ytd_pct': ytd_pct, 'cur_year': cur_year,
         'current_nw': current_nw, 'today': timezone.now().date(),
         'portfolio_now': portfolio_now, 'property_now': property_now, 'other_now': other_now,
+        'snap_change': snap_change,
     })
 
 

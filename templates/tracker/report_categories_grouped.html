@@ -125,7 +125,7 @@
     new Chart(el, {
       type: 'line',
       data: { labels: labels, datasets: series.map((s, i) => ({
-        label: s.name, data: s.data,
+        label: s.name, data: s.data.map(v => Math.abs(v)),
         borderColor: PALETTE[i % PALETTE.length],
         backgroundColor: (fillFirst ? PALETTE[i % PALETTE.length] + '22' : 'transparent'),
         fill: fillFirst, tension: .25, pointRadius: 2, borderWidth: 2 })) },

@@ -12,11 +12,25 @@
   </form>
 </div>
 
-{# Total Net Worth #}
-<div class="card mb-4"><div class="card-body text-center py-4">
-  <div class="label text-uppercase small text-secondary fw-semibold">Net Worth</div>
-  <div class="display-5 fw-bold num pos">${{ current_nw|floatformat:0|intcomma }}</div>
-</div></div>
+{# Current / Latest snapshot / Change #}
+<div class="row g-3 mb-4">
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body text-center py-4">
+    <div class="label text-uppercase small text-secondary fw-semibold">Current Net Worth</div>
+    <div class="display-6 fw-bold num {% if current_nw >= 0 %}amount-pos{% else %}amount-neg{% endif %}">${{ current_nw|floatformat:0|intcomma }}</div>
+    <div class="small text-secondary">live · today</div>
+  </div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body text-center py-4">
+    <div class="label text-uppercase small text-secondary fw-semibold">Latest Snapshot</div>
+    <div class="display-6 fw-bold num {% if latest %}{% if latest.net_worth >= 0 %}amount-pos{% else %}amount-neg{% endif %}{% endif %}">{% if latest %}${{ latest.net_worth|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
+    <div class="small text-secondary">{% if latest %}{{ latest.snapshot_date|date:"M j, Y" }}{% else %}no snapshots yet{% endif %}</div>
+  </div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body text-center py-4">
+    <div class="label text-uppercase small text-secondary fw-semibold">Change Since Snapshot</div>
+    <div class="display-6 fw-bold num {% if snap_change and snap_change >= 0 %}amount-pos{% elif snap_change %}amount-neg{% endif %}">
+      {% if snap_change != None %}{% if snap_change >= 0 %}+{% endif %}${{ snap_change|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
+    <div class="small text-secondary">vs latest snapshot</div>
+  </div></div></div>
+</div>
 
 {# Breakdown by Category #}
 <h6 class="text-secondary text-uppercase small fw-bold mb-2">Breakdown by Category</h6>

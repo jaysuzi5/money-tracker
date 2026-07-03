@@ -14,8 +14,8 @@
 {# 1. Total Portfolio + latest snapshot + change #}
 <div class="row g-3 mb-4">
   <div class="col-lg-4"><div class="card h-100"><div class="card-body text-center py-4">
-    <div class="label text-uppercase small text-secondary fw-semibold">Total Portfolio</div>
-    <div class="display-6 fw-bold num pos">${{ total|floatformat:0|intcomma }}</div>
+    <div class="label text-uppercase small text-secondary fw-semibold">Current Amount</div>
+    <div class="display-6 fw-bold num amount-pos">${{ total|floatformat:0|intcomma }}</div>
     <div class="small text-secondary">live · today</div>
   </div></div></div>
   <div class="col-lg-4"><div class="card h-100"><div class="card-body text-center py-4">
@@ -25,7 +25,7 @@
   </div></div></div>
   <div class="col-lg-4"><div class="card h-100"><div class="card-body text-center py-4">
     <div class="label text-uppercase small text-secondary fw-semibold">Change Since Snapshot</div>
-    <div class="display-6 fw-bold num {% if snap_change and snap_change >= 0 %}pos{% elif snap_change %}neg{% endif %}">
+    <div class="display-6 fw-bold num {% if snap_change and snap_change >= 0 %}amount-pos{% elif snap_change %}amount-neg{% endif %}">
       {% if snap_change != None %}{% if snap_change >= 0 %}+{% endif %}${{ snap_change|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
     <div class="small text-secondary">vs latest snapshot</div>
   </div></div></div>
