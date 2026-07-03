@@ -89,16 +89,19 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
                 account=acct, date=nt.date, amount=nt.amount, payee=nt.payee,
                 source=TxnSource.SIMPLEFIN).exclude(external_id=nt.external_id).exists():
             continue
-        new_status = TxnStatus.UNCLEARED if nt.pending else TxnStatus.CLEARED
+        # Never import pending items. Posted items come in cleared; the online_balance
+        # already reflects them, so no starting-balance adjustment is ever needed.
+        # Pending charges are added by hand and stay uncleared until they post for real.
+        if nt.pending:
+            continue
         obj, created = Transaction.objects.get_or_create(
             account=acct, external_id=nt.external_id,
             defaults={'date': nt.date, 'amount': nt.amount, 'payee': nt.payee,
-                      'memo': nt.memo, 'status': new_status,
+                      'memo': nt.memo, 'status': TxnStatus.CLEARED,
                       'source': TxnSource.SIMPLEFIN, 'is_new': True})
         if created:
             added += 1
-        # existing rows keep their status (you control clearing of in-flight/processing items;
-        # SimpleFIN's pending flag is unreliable for some providers e.g. Discover)
+        # existing rows keep their status (you control clearing of hand-entered in-flight items)
 
     matched = 0
     for acct in by_ext.values():
