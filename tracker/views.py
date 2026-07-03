@@ -1122,6 +1122,13 @@ def portfolio(request):
     start = timezone.now().date() - timedelta(days=366)
     snaps = list(PortfolioSnapshot.objects.filter(account_id__in=acct_ids)
                  .values('account_id', 'snapshot_date', 'balance').order_by('snapshot_date'))
+    # latest snapshot balance per account (snaps is date-ascending, so last write wins)
+    latest_by_acct = {}
+    for s in snaps:
+        latest_by_acct[s['account_id']] = s['balance']
+    for r in rows:
+        last = latest_by_acct.get(r['acct'].id)
+        r['change'] = (r['value'] - last) if last is not None else None
     dates = sorted({s['snapshot_date'] for s in snaps if s['snapshot_date'] >= start})
     series = []
     for d in dates:
@@ -1171,8 +1178,13 @@ def portfolio_account_history(request, account_id):
     snaps = list(account.portfolio_snapshots.order_by('-snapshot_date'))
     chart = [{'date': s.snapshot_date.isoformat(), 'balance': float(s.balance)}
              for s in reversed(snaps)]
+    # change vs the previous (older) snapshot; snaps is newest-first
+    hist_rows = []
+    for i, s in enumerate(snaps):
+        prev = snaps[i + 1] if i + 1 < len(snaps) else None
+        hist_rows.append({'s': s, 'change': (s.balance - prev.balance) if prev else None})
     return render(request, 'tracker/portfolio_history.html', {
-        'account': account, 'snaps': snaps, 'chart': chart,
+        'account': account, 'snaps': hist_rows, 'chart': chart,
     })
 
 

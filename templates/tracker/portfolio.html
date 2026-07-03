@@ -39,7 +39,7 @@
 <h6 class="text-secondary text-uppercase small fw-bold mb-2">All Accounts</h6>
 <div class="card table-card">
   <table class="table table-hover">
-    <thead><tr><th>Account</th><th>Institution</th><th>Type</th><th>Tax</th><th class="text-end">Balance</th><th></th></tr></thead>
+    <thead><tr><th>Account</th><th>Institution</th><th>Type</th><th>Tax</th><th class="text-end">Balance</th><th class="text-end">Change</th><th></th></tr></thead>
     <tbody>
     {% for r in rows %}
       <tr>
@@ -48,13 +48,15 @@
         <td><span class="badge type-badge">{{ r.acct.get_type_display }}</span></td>
         <td class="small text-secondary">{{ r.acct.get_tax_treatment_display|default:"—" }}</td>
         <td class="text-end num fw-semibold">${{ r.value|floatformat:2|intcomma }}</td>
+        <td class="text-end num {% if r.change and r.change >= 0 %}amount-pos{% elif r.change %}amount-neg{% endif %}">
+          {% if r.change != None %}{% if r.change >= 0 %}+{% endif %}${{ r.change|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
         <td class="text-end text-nowrap">
           <a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'tracker:portfolio_account_history' r.acct.id %}"><i class="bi bi-clock-history"></i> History</a>
           <a class="btn btn-sm btn-outline-primary py-0" href="{% url 'tracker:dashboard' %}?account={{ r.acct.id }}"><i class="bi bi-list-ul"></i> Account</a>
         </td>
       </tr>
     {% empty %}
-      <tr><td colspan="6"><div class="empty-state">No portfolio accounts. Mark accounts "in portfolio" via the account ⚙️.</div></td></tr>
+      <tr><td colspan="7"><div class="empty-state">No portfolio accounts. Mark accounts "in portfolio" via the account ⚙️.</div></td></tr>
     {% endfor %}
     </tbody>
   </table>
