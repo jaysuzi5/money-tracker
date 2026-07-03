@@ -1129,6 +1129,10 @@ def portfolio(request):
     for r in rows:
         last = latest_by_acct.get(r['acct'].id)
         r['change'] = (r['value'] - last) if last is not None else None
+    # latest snapshot: aggregate value, its date, and change vs current total
+    latest_snap_total = sum(latest_by_acct.values(), Decimal('0')) if latest_by_acct else None
+    latest_snap_date = max((s['snapshot_date'] for s in snaps), default=None)
+    snap_change = (total - latest_snap_total) if latest_snap_total is not None else None
     dates = sorted({s['snapshot_date'] for s in snaps if s['snapshot_date'] >= start})
     series = []
     for d in dates:
@@ -1168,6 +1172,8 @@ def portfolio(request):
         'total': total, 'tax_rows': tax_rows, 'perf_rows': perf_rows,
         'rows': rows, 'chart': series, 'draw': draw, 'today': timezone.now().date(),
         'draw_monthly': DRAWDOWN_MONTHLY, 'retirement': RETIREMENT_DATE,
+        'latest_snap_total': latest_snap_total, 'latest_snap_date': latest_snap_date,
+        'snap_change': snap_change,
     })
 
 

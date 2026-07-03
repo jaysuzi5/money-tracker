@@ -11,11 +11,25 @@
   </form>
 </div>
 
-{# 1. Total Portfolio #}
-<div class="card mb-4"><div class="card-body text-center py-4">
-  <div class="label text-uppercase small text-secondary fw-semibold">Total Portfolio</div>
-  <div class="display-5 fw-bold num pos">${{ total|floatformat:0|intcomma }}</div>
-</div></div>
+{# 1. Total Portfolio + latest snapshot + change #}
+<div class="row g-3 mb-4">
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body text-center py-4">
+    <div class="label text-uppercase small text-secondary fw-semibold">Total Portfolio</div>
+    <div class="display-6 fw-bold num pos">${{ total|floatformat:0|intcomma }}</div>
+    <div class="small text-secondary">live · today</div>
+  </div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body text-center py-4">
+    <div class="label text-uppercase small text-secondary fw-semibold">Latest Snapshot</div>
+    <div class="display-6 fw-bold num">{% if latest_snap_total != None %}${{ latest_snap_total|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
+    <div class="small text-secondary">{% if latest_snap_date %}{{ latest_snap_date|date:"M j, Y" }}{% else %}no snapshots yet{% endif %}</div>
+  </div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body text-center py-4">
+    <div class="label text-uppercase small text-secondary fw-semibold">Change Since Snapshot</div>
+    <div class="display-6 fw-bold num {% if snap_change and snap_change >= 0 %}pos{% elif snap_change %}neg{% endif %}">
+      {% if snap_change != None %}{% if snap_change >= 0 %}+{% endif %}${{ snap_change|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
+    <div class="small text-secondary">vs latest snapshot</div>
+  </div></div></div>
+</div>
 
 {# 2. Breakdown by Tax Treatment #}
 <h6 class="text-secondary text-uppercase small fw-bold mb-2">Breakdown by Tax Treatment</h6>
