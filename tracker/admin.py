@@ -82,6 +82,12 @@ class PortfolioSnapshotAdmin(admin.ModelAdmin):
     date_hierarchy = 'snapshot_date'
 
 
+@admin.register(models.PayeeAlias)
+class PayeeAliasAdmin(admin.ModelAdmin):
+    list_display = ('bank_name', 'local_payee', 'account')
+    search_fields = ('bank_name', 'local_payee')
+
+
 @admin.register(models.AgentCall)
 class AgentCallAdmin(admin.ModelAdmin):
     list_display = ('created_at', 'question', 'rounds', 'duration_ms', 'error')

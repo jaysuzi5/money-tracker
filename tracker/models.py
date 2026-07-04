@@ -105,6 +105,9 @@ class Account(models.Model):
     is_active = models.BooleanField(default=True)
     in_portfolio = models.BooleanField(default=False)  # include in the Portfolio view + snapshots
     tax_treatment = models.CharField(max_length=10, choices=TaxTreatment.choices, blank=True)
+    # balance = opening_balance + sum(all transactions) − allocated. The register runs
+    # additively from opening_balance; a one-time adjustment transaction reconciles to reality.
+    opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -226,6 +229,7 @@ class Transaction(models.Model):
         'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='matches'
     )
     is_new = models.BooleanField(default=False)  # surfaced by sync, cleared on review
+    exclude_match = models.BooleanField(default=False)  # user said "not a match"; hide from suggestions
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -265,18 +269,36 @@ class TransactionSplit(models.Model):
 
 
 def recompute_balance(account):
-    """Balance = online (posted, from the bank) + in-flight (uncleared, signed) − set-aside.
-    Works for all account types: credit-card charges are negative (raise owed), payments
-    positive; processing/pending items stay uncleared until they post.
-    Accounts with manual_balance keep their hand-set current_balance."""
+    """Balance = opening_balance + sum(ALL transactions) − set-aside (allocated).
+    The register adds/subtracts each transaction from opening_balance; the balance is NOT
+    forced to match the bank's online_balance. online_balance stays a reconciliation
+    reference (see the reconcile view). Accounts with manual_balance keep their hand-set value."""
     if account.manual_balance:
         return account.current_balance
-    inflight = account.transactions.filter(
-        status=TxnStatus.UNCLEARED).aggregate(s=Sum('amount'))['s'] or Decimal('0')
-    bal = (account.online_balance or Decimal('0')) + inflight - account.allocated_total
+    txn_sum = account.transactions.aggregate(s=Sum('amount'))['s'] or Decimal('0')
+    bal = (account.opening_balance or Decimal('0')) + txn_sum - account.allocated_total
     Account.objects.filter(pk=account.pk).update(current_balance=bal)
     account.current_balance = bal
     return bal
+
+
+class PayeeAlias(models.Model):
+    """Learned mapping: a bank-provided payee string that should match a local payee.
+    e.g. bank 'Mmfa.com' → local 'Moravian Church'. Used by the matcher."""
+    bank_name = models.CharField(max_length=200, db_index=True)
+    local_payee = models.CharField(max_length=200)
+    account = models.ForeignKey(
+        Account, null=True, blank=True, on_delete=models.CASCADE, related_name='payee_aliases')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['bank_name']
+        constraints = [
+            models.UniqueConstraint(fields=['bank_name', 'local_payee'], name='uniq_payee_alias'),
+        ]
+
+    def __str__(self):
+        return f'{self.bank_name} → {self.local_payee}'
 
 
 class PropertyEntry(models.Model):

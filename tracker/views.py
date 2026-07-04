@@ -135,13 +135,18 @@ def dashboard(request):
         if rng != 'all':
             txns = txns.filter(date__gte=today - timedelta(days=92))
 
-        # running balance always computed in date order, then re-sorted for display
+        # Running balance is purely additive: opening_balance + each transaction in date
+        # order, over ALL of the account's transactions (not just the displayed window).
+        # It is NOT forced to match the bank's online balance.
+        run_by_id = {}
+        running = account.opening_balance or Decimal('0')
+        for tid, amt in account.transactions.order_by('date', 'id').values_list('id', 'amount'):
+            running += amt
+            run_by_id[tid] = running
+
         txns = list(txns.order_by('date', 'id'))
-        opening = account.current_balance - sum((t.amount for t in txns), Decimal('0'))
-        running = opening
         for t in txns:
-            running += t.amount
-            t.running = running
+            t.running = run_by_id.get(t.id)
             t.is_future = t.date > today
             t.split_list = list(t.splits.all())
             t.category_label = '— Split —' if t.split_list else (str(t.category) if t.category else '')
@@ -150,15 +155,6 @@ def dashboard(request):
         direction = request.GET.get('dir', 'asc')
         if sort in SORT_KEYS:
             txns.sort(key=SORT_KEYS[sort], reverse=(direction == 'desc'))
-
-        # Credit cards: running balance follows the DISPLAYED order and is owed-based
-        # (charges raise the balance, payments/credits lower it). Anchored so the last
-        # row = current balance; the last cleared row then shows the cleared balance.
-        if account.type == AccountType.CREDIT_CARD:
-            run = account.current_balance
-            for t in reversed(txns):
-                t.running = run
-                run -= t.amount
 
         if account.type == AccountType.CREDIT_CARD:
             credits = account.transactions.filter(
@@ -460,6 +456,50 @@ def account_register(request, account_id):
         'account': account,
         'txns': txns,
     })
+
+
+@login_required
+def matches(request):
+    """Confirm/deny exact-amount pairs the matcher wasn't confident enough to auto-merge."""
+    from .matching import pending_suggestions
+    suggestions = pending_suggestions()
+    for s in suggestions:
+        s['imp_running'] = None
+    return render(request, 'tracker/matches.html', {'suggestions': suggestions})
+
+
+@login_required
+@require_POST
+def match_confirm(request):
+    """User confirms a suggested pair: merge them and remember the payee alias."""
+    from .models import PayeeAlias
+    from .matching import merge
+    imported = get_object_or_404(Transaction, pk=request.POST.get('imported_id'))
+    manual = get_object_or_404(Transaction, pk=request.POST.get('manual_id'))
+    bank_name, local_payee, acct = imported.payee, manual.payee, manual.account
+    merge(manual, imported)  # deletes imported, promotes manual to cleared
+    if bank_name and local_payee and _norm_payee(bank_name) != _norm_payee(local_payee):
+        PayeeAlias.objects.get_or_create(
+            bank_name=bank_name, local_payee=local_payee, account=acct)
+    _recompute_available(acct)
+    messages.success(request, f'Matched “{bank_name}” → “{local_payee}” and saved the alias.')
+    return redirect(reverse('tracker:matches'))
+
+
+@login_required
+@require_POST
+def match_dismiss(request):
+    """User says the pair is NOT a match; stop suggesting the manual entry."""
+    manual = get_object_or_404(Transaction, pk=request.POST.get('manual_id'))
+    manual.exclude_match = True
+    manual.save(update_fields=['exclude_match'])
+    messages.info(request, 'Kept both as separate transactions.')
+    return redirect(reverse('tracker:matches'))
+
+
+def _norm_payee(s):
+    import re as _re
+    return _re.sub(r'[^a-z0-9 ]', '', (s or '').lower()).strip()
 
 
 @login_required
