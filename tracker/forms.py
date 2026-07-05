@@ -53,12 +53,15 @@ class AccountForm(forms.ModelForm):
         fields = ['name', 'type', 'is_reconcilable', 'is_investment',
                   'is_manual', 'manual_balance', 'is_active',
                   'in_portfolio', 'tax_treatment',
-                  'online_balance', 'current_balance']
+                  'opening_balance', 'online_balance', 'current_balance']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['is_manual'].label = 'Manual online balance (sync won\'t overwrite)'
-        self.fields['online_balance'].label = 'Online balance (used when manual online)'
+        self.fields['opening_balance'].label = 'Opening balance (one-time; ledger adds from here)'
+        self.fields['opening_balance'].help_text = (
+            'Set once so opening + all transactions = the real balance. Never auto-updated.')
+        self.fields['online_balance'].label = 'Online balance (bank reference / reconcile only)'
         self.fields['manual_balance'].label = 'Manual current balance (not recomputed)'
         self.fields['current_balance'].label = 'Current balance (used when manual current)'
         _bootstrap(self.fields)

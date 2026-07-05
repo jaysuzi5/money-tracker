@@ -135,15 +135,26 @@ def dashboard(request):
         if rng != 'all':
             txns = txns.filter(date__gte=today - timedelta(days=92))
 
-        # running balance always computed in date order, then re-sorted for display.
-        # Anchored to current_balance so the newest row equals the true balance (the
-        # imported history isn't a complete ledger, so a pure additive sum wouldn't reconcile).
+        from .models import LEDGER_TYPES
         txns = list(txns.order_by('date', 'id'))
-        opening = account.current_balance - sum((t.amount for t in txns), Decimal('0'))
-        running = opening
+        if account.type in LEDGER_TYPES:
+            # Purely additive: opening_balance + each transaction in date order, over ALL of
+            # the account's transactions. Authoritative — not forced to the bank balance.
+            run_by_id = {}
+            running = account.opening_balance or Decimal('0')
+            for tid, amt in account.transactions.order_by('date', 'id').values_list('id', 'amount'):
+                running += amt
+                run_by_id[tid] = running
+            for t in txns:
+                t.running = run_by_id.get(t.id)
+        else:
+            # Value accounts: anchor so the newest row equals the tracked balance.
+            opening = account.current_balance - sum((t.amount for t in txns), Decimal('0'))
+            running = opening
+            for t in txns:
+                running += t.amount
+                t.running = running
         for t in txns:
-            running += t.amount
-            t.running = running
             t.is_future = t.date > today
             t.split_list = list(t.splits.all())
             t.category_label = '— Split —' if t.split_list else (str(t.category) if t.category else '')
@@ -152,13 +163,6 @@ def dashboard(request):
         direction = request.GET.get('dir', 'asc')
         if sort in SORT_KEYS:
             txns.sort(key=SORT_KEYS[sort], reverse=(direction == 'desc'))
-
-        # Credit cards: running follows DISPLAYED order, owed-based, anchored to current.
-        if account.type == AccountType.CREDIT_CARD:
-            run = account.current_balance
-            for t in reversed(txns):
-                t.running = run
-                run -= t.amount
 
         if account.type == AccountType.CREDIT_CARD:
             credits = account.transactions.filter(

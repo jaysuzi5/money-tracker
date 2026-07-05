@@ -268,17 +268,28 @@ class TransactionSplit(models.Model):
         return f'{self.category or "uncategorized"}: {self.amount}'
 
 
+# Cash-style accounts keep a transaction ledger (additive balance). Value-style accounts
+# (investments, property) track worth via online_balance/holdings/entries, not a ledger.
+LEDGER_TYPES = {'checking', 'savings', 'money_market', 'cash', 'credit_card'}
+
+
 def recompute_balance(account):
-    """Balance = online (posted, from the bank) + in-flight (uncleared, signed) − set-aside.
-    The bank's online_balance is the source of truth; hand-entered uncleared items add
-    what's in-flight. (An additive register-only ledger doesn't work here because the
-    imported history was never a complete ledger from a known opening balance.)
-    Accounts with manual_balance keep their hand-set current_balance."""
+    """Ledger accounts (checking/savings/cash/credit): balance = opening_balance +
+    sum(ALL transactions) − set-aside. opening_balance is a MANUAL, one-time setting, never
+    auto-updated; online_balance is only a reconciliation reference so drift is visible.
+    Value accounts (brokerage, 401k, property, …): balance = online_balance + uncleared −
+    set-aside (worth comes from the feed/holdings, not a transaction ledger).
+    manual_balance accounts keep their hand-set current_balance."""
     if account.manual_balance:
         return account.current_balance
-    inflight = account.transactions.filter(
-        status=TxnStatus.UNCLEARED).aggregate(s=Sum('amount'))['s'] or Decimal('0')
-    bal = (account.online_balance or Decimal('0')) + inflight - account.allocated_total
+    if account.type in LEDGER_TYPES:
+        base = (account.opening_balance or Decimal('0')) + \
+            (account.transactions.aggregate(s=Sum('amount'))['s'] or Decimal('0'))
+    else:
+        inflight = account.transactions.filter(
+            status=TxnStatus.UNCLEARED).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        base = (account.online_balance or Decimal('0')) + inflight
+    bal = base - account.allocated_total
     Account.objects.filter(pk=account.pk).update(current_balance=bal)
     account.current_balance = bal
     return bal
