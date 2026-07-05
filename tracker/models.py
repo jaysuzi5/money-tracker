@@ -269,14 +269,16 @@ class TransactionSplit(models.Model):
 
 
 def recompute_balance(account):
-    """Balance = opening_balance + sum(ALL transactions) − set-aside (allocated).
-    The register adds/subtracts each transaction from opening_balance; the balance is NOT
-    forced to match the bank's online_balance. online_balance stays a reconciliation
-    reference (see the reconcile view). Accounts with manual_balance keep their hand-set value."""
+    """Balance = online (posted, from the bank) + in-flight (uncleared, signed) − set-aside.
+    The bank's online_balance is the source of truth; hand-entered uncleared items add
+    what's in-flight. (An additive register-only ledger doesn't work here because the
+    imported history was never a complete ledger from a known opening balance.)
+    Accounts with manual_balance keep their hand-set current_balance."""
     if account.manual_balance:
         return account.current_balance
-    txn_sum = account.transactions.aggregate(s=Sum('amount'))['s'] or Decimal('0')
-    bal = (account.opening_balance or Decimal('0')) + txn_sum - account.allocated_total
+    inflight = account.transactions.filter(
+        status=TxnStatus.UNCLEARED).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+    bal = (account.online_balance or Decimal('0')) + inflight - account.allocated_total
     Account.objects.filter(pk=account.pk).update(current_balance=bal)
     account.current_balance = bal
     return bal
