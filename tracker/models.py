@@ -269,20 +269,26 @@ class TransactionSplit(models.Model):
 
 
 # Cash-style accounts keep a transaction ledger (additive balance). Value-style accounts
-# (investments, property) track worth via online_balance/holdings/entries, not a ledger.
+# (investments, property, anything in the portfolio) track worth via online_balance /
+# holdings / entries, not a ledger.
 LEDGER_TYPES = {'checking', 'savings', 'money_market', 'cash', 'credit_card'}
 
 
+def is_ledger_account(account):
+    """True if the account's balance is an additive transaction ledger. Portfolio/value
+    accounts (even if typed 'savings') track worth via online_balance instead."""
+    return account.type in LEDGER_TYPES and not account.in_portfolio
+
+
 def recompute_balance(account):
-    """Ledger accounts (checking/savings/cash/credit): balance = opening_balance +
-    sum(ALL transactions) − set-aside. opening_balance is a MANUAL, one-time setting, never
-    auto-updated; online_balance is only a reconciliation reference so drift is visible.
-    Value accounts (brokerage, 401k, property, …): balance = online_balance + uncleared −
-    set-aside (worth comes from the feed/holdings, not a transaction ledger).
-    manual_balance accounts keep their hand-set current_balance."""
+    """Ledger accounts (cash/checking/savings/credit, not in portfolio): balance =
+    opening_balance + sum(ALL transactions) − set-aside. opening_balance is a MANUAL, one-time
+    setting, never auto-updated; online_balance is only a reconciliation reference so drift is
+    visible. Value accounts (brokerage, 401k, HSA, property, portfolio): balance = online_balance
+    + uncleared − set-aside. manual_balance accounts keep their hand-set current_balance."""
     if account.manual_balance:
         return account.current_balance
-    if account.type in LEDGER_TYPES:
+    if is_ledger_account(account):
         base = (account.opening_balance or Decimal('0')) + \
             (account.transactions.aggregate(s=Sum('amount'))['s'] or Decimal('0'))
     else:

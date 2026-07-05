@@ -135,9 +135,9 @@ def dashboard(request):
         if rng != 'all':
             txns = txns.filter(date__gte=today - timedelta(days=92))
 
-        from .models import LEDGER_TYPES
+        from .models import is_ledger_account
         txns = list(txns.order_by('date', 'id'))
-        if account.type in LEDGER_TYPES:
+        if is_ledger_account(account):
             # Purely additive: opening_balance + each transaction in date order, over ALL of
             # the account's transactions. Authoritative — not forced to the bank balance.
             run_by_id = {}
