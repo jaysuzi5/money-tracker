@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Duplicates{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div><h1>Review Duplicates</h1><div class="subtitle">{{ total }} group{{ total|pluralize }} of transactions with the same account, date, amount, and payee. Delete the extras you don't want — one is usually the keeper. Reconciled rows are locked.</div></div>
+</div>
+
+<div class="card table-card">
+  <table class="table">
+    <thead><tr><th>Account</th><th>Date</th><th class="text-end">Amount</th><th>Payee</th><th>Status</th><th>Source</th><th>Memo</th><th></th></tr></thead>
+    <tbody>
+    {% for g in groups %}
+      <tr class="rpt-pivot-sec"><td colspan="8">{{ g.account.name }} · {{ g.date|date:"M j, Y" }} · ${{ g.amount|floatformat:2|intcomma }} · {{ g.count }} copies</td></tr>
+      {% for t in g.rows %}
+        <tr>
+          <td class="small text-secondary">{{ t.account.name }}</td>
+          <td class="text-nowrap">{{ t.date|date:"M j, Y" }}</td>
+          <td class="text-end num">${{ t.amount|floatformat:2|intcomma }}</td>
+          <td>{{ t.payee }}</td>
+          <td><span class="badge status-{{ t.status }}">{{ t.get_status_display }}</span></td>
+          <td class="small text-secondary">{{ t.get_source_display }}</td>
+          <td class="small text-secondary">{{ t.memo|truncatechars:36 }}</td>
+          <td class="text-end text-nowrap">
+            {% if t.status == 'reconciled' %}
+              <span class="small text-secondary"><i class="bi bi-lock"></i> locked</span>
+            {% else %}
+              <form method="post" action="{% url 'tracker:duplicate_delete' %}" class="d-inline" onsubmit="return confirm('Delete this transaction?')">{% csrf_token %}
+                <input type="hidden" name="txn_id" value="{{ t.id }}">
+                <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-trash"></i> Delete</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    {% empty %}
+      <tr><td colspan="8"><div class="empty-state">No duplicate transactions found.</div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

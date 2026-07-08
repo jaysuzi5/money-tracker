@@ -289,13 +289,15 @@ def recompute_balance(account):
     if account.manual_balance:
         return account.current_balance
     if is_ledger_account(account):
-        base = (account.opening_balance or Decimal('0')) + \
+        # Pure additive ledger. Bucket moves already post a mirror transaction that reduces
+        # the balance, so do NOT also subtract allocated (that would double-count the
+        # earmark). The register's running balance equals this exactly.
+        bal = (account.opening_balance or Decimal('0')) + \
             (account.transactions.aggregate(s=Sum('amount'))['s'] or Decimal('0'))
     else:
         inflight = account.transactions.filter(
             status=TxnStatus.UNCLEARED).aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        base = (account.online_balance or Decimal('0')) + inflight
-    bal = base - account.allocated_total
+        bal = (account.online_balance or Decimal('0')) + inflight - account.allocated_total
     Account.objects.filter(pk=account.pk).update(current_balance=bal)
     account.current_balance = bal
     return bal

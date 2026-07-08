@@ -467,6 +467,37 @@ def account_register(request, account_id):
 
 
 @login_required
+def duplicates(request):
+    """Groups of transactions with identical account+date+amount+payee — likely import
+    artifacts. The user reviews each group and deletes the extras (reconciled ones locked)."""
+    from django.db.models import Count
+    groups_qs = (Transaction.objects.values('account_id', 'date', 'amount', 'payee')
+                 .annotate(c=Count('id')).filter(c__gt=1).order_by('-date'))
+    groups = []
+    for g in groups_qs[:300]:
+        rows = list(Transaction.objects.filter(
+            account_id=g['account_id'], date=g['date'],
+            amount=g['amount'], payee=g['payee']).select_related('account').order_by('id'))
+        groups.append({'rows': rows, 'account': rows[0].account,
+                       'date': g['date'], 'amount': g['amount'], 'count': g['c']})
+    return render(request, 'tracker/duplicates.html', {'groups': groups, 'total': len(groups)})
+
+
+@login_required
+@require_POST
+def duplicate_delete(request):
+    txn = get_object_or_404(Transaction, pk=request.POST.get('txn_id'))
+    if txn.status == TxnStatus.RECONCILED:
+        messages.error(request, 'Reconciled transactions are locked and cannot be deleted.')
+        return redirect(reverse('tracker:duplicates'))
+    account = txn.account
+    txn.delete()
+    _recompute_available(account)
+    messages.success(request, 'Duplicate removed.')
+    return redirect(reverse('tracker:duplicates'))
+
+
+@login_required
 def matches(request):
     """Confirm/deny exact-amount pairs the matcher wasn't confident enough to auto-merge."""
     from .matching import pending_suggestions
