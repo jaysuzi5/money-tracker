@@ -24,17 +24,28 @@
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav me-auto ms-lg-4">
         <li class="nav-item"><a class="nav-link {% if url_name == 'dashboard' %}active{% endif %}" href="{% url 'tracker:dashboard' %}"><i class="bi bi-grid-1x2"></i> Dashboard</a></li>
-        <li class="nav-item"><a class="nav-link {% if url_name == 'portfolio' %}active{% endif %}" href="{% url 'tracker:portfolio' %}"><i class="bi bi-graph-up-arrow"></i> Portfolio</a></li>
-        <li class="nav-item"><a class="nav-link {% if url_name == 'networth' %}active{% endif %}" href="{% url 'tracker:networth' %}"><i class="bi bi-clipboard-data"></i> Net Worth</a></li>
-        <li class="nav-item"><a class="nav-link {% if url_name == 'reports' %}active{% endif %}" href="{% url 'tracker:reports' %}"><i class="bi bi-bar-chart-line"></i> Reports</a></li>
-        <li class="nav-item"><a class="nav-link {% if url_name == 'matches' %}active{% endif %}" href="{% url 'tracker:matches' %}"><i class="bi bi-link-45deg"></i> Matches</a></li>
-        <li class="nav-item"><a class="nav-link {% if url_name == 'duplicates' %}active{% endif %}" href="{% url 'tracker:duplicates' %}"><i class="bi bi-files"></i> Duplicates</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if url_name in 'reports,report_categories,portfolio,networth' %}active{% endif %}" href="#" data-bs-toggle="dropdown"><i class="bi bi-bar-chart-line"></i> Reports</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'tracker:reports' %}"><i class="bi bi-bar-chart-line"></i> Reports Overview</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'tracker:portfolio' %}"><i class="bi bi-graph-up-arrow"></i> Portfolio</a></li>
+            <li><a class="dropdown-item" href="{% url 'tracker:networth' %}"><i class="bi bi-clipboard-data"></i> Net Worth</a></li>
+            <li><a class="dropdown-item" href="{% url 'tracker:report_categories' %}"><i class="bi bi-tags"></i> Category Report</a></li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if url_name in 'matches,duplicates,buckets,categories' %}active{% endif %}" href="#" data-bs-toggle="dropdown"><i class="bi bi-tools"></i> Maintenance</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'tracker:matches' %}"><i class="bi bi-link-45deg"></i> Matches</a></li>
+            <li><a class="dropdown-item" href="{% url 'tracker:duplicates' %}"><i class="bi bi-files"></i> Duplicates</a></li>
+            <li><a class="dropdown-item" href="{% url 'tracker:buckets' %}"><i class="bi bi-piggy-bank"></i> Buckets</a></li>
+            <li><a class="dropdown-item" href="{% url 'tracker:categories' %}"><i class="bi bi-tags"></i> Categories</a></li>
+          </ul>
+        </li>
         <li class="nav-item"><a class="nav-link {% if url_name == 'agent' %}active{% endif %}" href="{% url 'tracker:agent' %}"><i class="bi bi-robot"></i> Ask</a></li>
-        <li class="nav-item"><a class="nav-link {% if url_name == 'buckets' %}active{% endif %}" href="{% url 'tracker:buckets' %}"><i class="bi bi-piggy-bank"></i> Buckets</a></li>
-        <li class="nav-item"><a class="nav-link {% if url_name == 'categories' %}active{% endif %}" href="{% url 'tracker:categories' %}"><i class="bi bi-tags"></i> Categories</a></li>
       </ul>
       <ul class="navbar-nav align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="{% url 'tracker:transfer_new' %}"><i class="bi bi-arrow-left-right"></i> Transfer</a></li>
         <li class="nav-item">
           <form method="post" action="{% url 'tracker:sync_now' %}" class="m-0 px-2" id="sync-form">{% csrf_token %}
             <button class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat"></i> Sync</button>

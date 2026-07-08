@@ -172,7 +172,7 @@ footer.mt-footer { color: var(--mt-muted); font-size: .8rem; padding: 2rem 0 1re
 .qk-shell-wrap { width: 100%; padding: 0; }
 .qk-shell {
   display: flex;
-  height: calc(100vh - 58px);
+  height: calc(100vh - 72px);
   background: var(--mt-surface);
 }
 .qk-sidebar {
