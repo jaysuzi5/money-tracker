@@ -56,7 +56,8 @@ def payee_sim(imported: Transaction, candidate: Transaction) -> float:
 
 def find_candidates(imported: Transaction):
     """Hand-entered txns in the same account, exact amount, within the date window,
-    not already matched to a bank row (external_id empty). Any clear status."""
+    not already matched (external_id empty), and NOT reconciled. Reconciled transactions
+    are locked — never matched, mutated, or deleted."""
     lo = imported.date - timedelta(days=DATE_WINDOW_DAYS)
     hi = imported.date + timedelta(days=DATE_WINDOW_DAYS)
     return list(
@@ -65,7 +66,7 @@ def find_candidates(imported: Transaction):
             amount=imported.amount,
             date__gte=lo, date__lte=hi,
             external_id='', exclude_match=False,
-        ).exclude(source=TxnSource.SIMPLEFIN)
+        ).exclude(source=TxnSource.SIMPLEFIN).exclude(status=TxnStatus.RECONCILED)
     )
 
 

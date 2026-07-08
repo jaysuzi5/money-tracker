@@ -545,6 +545,10 @@ def reconcile(request, account_id):
 @require_POST
 def toggle_clear(request, txn_id):
     txn = get_object_or_404(Transaction, pk=txn_id)
+    if txn.status == TxnStatus.RECONCILED:
+        messages.error(request, 'Reconciled transactions are locked.')
+        return redirect(request.META.get('HTTP_REFERER',
+                        reverse('tracker:reconcile', args=[txn.account_id])))
     txn.status = (TxnStatus.UNCLEARED if txn.status == TxnStatus.CLEARED
                   else TxnStatus.CLEARED)
     txn.save(update_fields=['status'])
@@ -573,6 +577,9 @@ def receipt_new(request):
 @login_required
 def txn_edit(request, txn_id):
     txn = get_object_or_404(Transaction, pk=txn_id)
+    if txn.status == TxnStatus.RECONCILED:
+        messages.error(request, 'Reconciled transactions are locked and cannot be edited.')
+        return _account_redirect(txn.account_id)
     if request.method == 'POST':
         form = TxnEditForm(request.POST, instance=txn)
         if form.is_valid():
@@ -588,6 +595,9 @@ def txn_edit(request, txn_id):
 @require_POST
 def txn_delete(request, txn_id):
     txn = get_object_or_404(Transaction, pk=txn_id)
+    if txn.status == TxnStatus.RECONCILED:
+        messages.error(request, 'Reconciled transactions are locked and cannot be deleted.')
+        return _account_redirect(txn.account_id)
     account = txn.account
     account_id = txn.account_id
     txn.delete()
@@ -601,6 +611,9 @@ def txn_delete(request, txn_id):
 def txn_update(request, txn_id):
     """In-place edit of a single (non-split) transaction's date/payee/category/amount/memo."""
     txn = get_object_or_404(Transaction, pk=txn_id)
+    if txn.status == TxnStatus.RECONCILED:
+        messages.error(request, 'Reconciled transactions are locked and cannot be changed.')
+        return _account_redirect(txn.account_id)
     if txn.is_split:
         messages.error(request, 'Split transaction — use Split to edit its lines.')
         return _account_redirect(txn.account_id)
@@ -623,6 +636,9 @@ def txn_update(request, txn_id):
 @login_required
 def split_edit(request, txn_id):
     txn = get_object_or_404(Transaction, pk=txn_id)
+    if txn.status == TxnStatus.RECONCILED:
+        messages.error(request, 'Reconciled transactions are locked and cannot be changed.')
+        return _account_redirect(txn.account_id)
     if request.method == 'POST':
         if request.POST.get('action') == 'clear':
             txn.splits.all().delete()
