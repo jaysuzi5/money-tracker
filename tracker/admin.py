@@ -82,6 +82,12 @@ class PortfolioSnapshotAdmin(admin.ModelAdmin):
     date_hierarchy = 'snapshot_date'
 
 
+@admin.register(models.ScheduledTransaction)
+class ScheduledTransactionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'kind', 'source_account', 'amount', 'day', 'month_offset', 'is_active')
+    list_filter = ('kind', 'is_active')
+
+
 @admin.register(models.PayeeAlias)
 class PayeeAliasAdmin(admin.ModelAdmin):
     list_display = ('bank_name', 'local_payee', 'account')

@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Scheduled{% endblock %}
+{% block content %}
+<div class="mt-page-header">
+  <div><h1>Scheduled Transactions</h1><div class="subtitle">Recurring monthly items. Review and post the batch for a month.</div></div>
+  <form method="get" class="d-flex gap-2 align-items-center m-0">
+    <input type="month" name="month" value="{{ month_str }}" class="form-control form-control-sm" style="width:auto">
+    <button class="btn btn-sm btn-light">Go</button>
+  </form>
+</div>
+
+<form method="post" action="{% url 'tracker:scheduled_post' %}">{% csrf_token %}
+  <input type="hidden" name="month" value="{{ month_str }}">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="text-secondary small">Posting month: <strong>{{ month_label }}</strong> · unposted total <strong class="num">${{ total|floatformat:2|intcomma }}</strong></div>
+    <div>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.querySelectorAll('.sched-cb:not(:disabled)').forEach(c=>c.checked=true)">Select all</button>
+      <button class="btn btn-sm btn-primary" onclick="return confirm('Post all selected scheduled transactions for {{ month_label }}?')"><i class="bi bi-check2-all"></i> Post selected</button>
+    </div>
+  </div>
+
+  <div class="card table-card">
+    <table class="table table-hover">
+      <thead><tr><th style="width:2rem"></th><th>Date</th><th>Name</th><th>Type</th><th>From → To / Category</th><th class="text-end">Amount</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr class="{% if r.posted %}text-secondary{% endif %}">
+          <td><input type="checkbox" class="form-check-input sched-cb" name="post" value="{{ r.s.id }}" {% if not r.posted %}checked{% else %}disabled{% endif %}></td>
+          <td class="text-nowrap">{{ r.when|date:"M j, Y" }}</td>
+          <td class="fw-semibold">{{ r.s.name }}</td>
+          <td><span class="badge type-badge">{{ r.s.get_kind_display }}</span></td>
+          <td class="small">
+            {{ r.s.source_account.name }}
+            {% if r.s.kind == 'transfer' %}<i class="bi bi-arrow-right"></i> {{ r.s.to_account.name }}
+            {% elif r.s.kind == 'bucket' %}<i class="bi bi-arrow-right"></i> {{ r.s.to_bucket.name }} (bucket)
+            {% elif r.s.kind == 'payment' %}· {{ r.s.category.parent.name }}: {{ r.s.category.name }}{% endif %}
+          </td>
+          <td class="text-end num fw-semibold">${{ r.s.amount|floatformat:2|intcomma }}</td>
+          <td class="text-end">{% if r.posted %}<span class="badge status-reconciled">posted</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7"><div class="empty-state">No scheduled transactions defined.</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+{% endblock %}

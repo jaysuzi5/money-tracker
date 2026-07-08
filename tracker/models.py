@@ -423,6 +423,40 @@ class NetWorthSnapshot(models.Model):
         return f'{self.snapshot_date} {self.net_worth}'
 
 
+class ScheduledKind(models.TextChoices):
+    BUCKET = 'bucket', 'Bucket set-aside'
+    TRANSFER = 'transfer', 'Account transfer'
+    PAYMENT = 'payment', 'Payment'
+
+
+class ScheduledTransaction(models.Model):
+    """A recurring monthly transaction, posted in batch after review."""
+    name = models.CharField(max_length=120)
+    kind = models.CharField(max_length=12, choices=ScheduledKind.choices)
+    source_account = models.ForeignKey(
+        Account, on_delete=models.CASCADE, related_name='scheduled')
+    amount = models.DecimalField(max_digits=14, decimal_places=2)  # positive
+    day = models.IntegerField(default=20)          # day of month
+    month_offset = models.IntegerField(default=0)  # 0 = this month, 1 = upcoming month
+    to_account = models.ForeignKey(
+        Account, null=True, blank=True, on_delete=models.SET_NULL, related_name='scheduled_in')
+    to_bucket = models.ForeignKey(
+        Bucket, null=True, blank=True, on_delete=models.SET_NULL, related_name='scheduled')
+    category = models.ForeignKey(
+        Category, null=True, blank=True, on_delete=models.SET_NULL, related_name='scheduled')
+    payee = models.CharField(max_length=200, blank=True)
+    memo = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+    last_posted = models.DateField(null=True, blank=True)  # first-of-month of last run
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f'{self.name} (${self.amount})'
+
+
 class SyncRun(models.Model):
     institution = models.ForeignKey(
         Institution, null=True, blank=True, on_delete=models.SET_NULL, related_name='sync_runs'

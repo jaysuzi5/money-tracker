@@ -35,8 +35,9 @@
           </ul>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if url_name in 'matches,duplicates,buckets,categories' %}active{% endif %}" href="#" data-bs-toggle="dropdown"><i class="bi bi-tools"></i> Maintenance</a>
+          <a class="nav-link dropdown-toggle {% if url_name in 'scheduled,matches,duplicates,buckets,categories' %}active{% endif %}" href="#" data-bs-toggle="dropdown"><i class="bi bi-tools"></i> Maintenance</a>
           <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'tracker:scheduled' %}"><i class="bi bi-calendar-check"></i> Scheduled</a></li>
             <li><a class="dropdown-item" href="{% url 'tracker:matches' %}"><i class="bi bi-link-45deg"></i> Matches</a></li>
             <li><a class="dropdown-item" href="{% url 'tracker:duplicates' %}"><i class="bi bi-files"></i> Duplicates</a></li>
             <li><a class="dropdown-item" href="{% url 'tracker:buckets' %}"><i class="bi bi-piggy-bank"></i> Buckets</a></li>

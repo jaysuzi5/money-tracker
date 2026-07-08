@@ -497,6 +497,79 @@ def duplicate_delete(request):
     return redirect(reverse('tracker:duplicates'))
 
 
+def _sched_date(base, day, offset):
+    import calendar
+    m = base.month - 1 + offset
+    y = base.year + m // 12
+    m = m % 12 + 1
+    last = calendar.monthrange(y, m)[1]
+    return date(y, m, min(day, last))
+
+
+def _post_scheduled(sched, when):
+    """Create the real transaction(s) for one scheduled item on date `when`."""
+    from .models import ScheduledKind, Transfer, TxnSource
+    memo = sched.memo or f'Scheduled: {sched.name}'
+    if sched.kind == ScheduledKind.BUCKET and sched.to_bucket:
+        _create_bucket_entry(sched.to_bucket, when, sched.amount, memo)
+    elif sched.kind == ScheduledKind.TRANSFER and sched.to_account:
+        transfer = Transfer.objects.create(note=memo)
+        tcat = _transfer_category()
+        Transaction.objects.create(
+            account=sched.source_account, date=when, amount=-sched.amount,
+            payee=f'Transfer to {sched.to_account.name}', memo=memo,
+            category=tcat, status=TxnStatus.UNCLEARED, source=TxnSource.MANUAL, transfer=transfer)
+        Transaction.objects.create(
+            account=sched.to_account, date=when, amount=sched.amount,
+            payee=f'Transfer from {sched.source_account.name}', memo=memo,
+            category=tcat, status=TxnStatus.UNCLEARED, source=TxnSource.MANUAL, transfer=transfer)
+        _recompute_available(sched.source_account)
+        _recompute_available(sched.to_account)
+    elif sched.kind == ScheduledKind.PAYMENT:
+        Transaction.objects.create(
+            account=sched.source_account, date=when, amount=-sched.amount,
+            payee=sched.payee or sched.name, memo=memo, category=sched.category,
+            status=TxnStatus.UNCLEARED, source=TxnSource.MANUAL)
+        _recompute_available(sched.source_account)
+
+
+@login_required
+def scheduled(request):
+    from .models import ScheduledTransaction
+    base_str = request.GET.get('month')
+    base = date.fromisoformat(base_str + '-01') if base_str else timezone.now().date().replace(day=1)
+    items = list(ScheduledTransaction.objects.filter(is_active=True)
+                 .select_related('source_account', 'to_account', 'to_bucket', 'category'))
+    rows = []
+    for s in items:
+        rows.append({'s': s, 'when': _sched_date(base, s.day, s.month_offset),
+                     'posted': s.last_posted == base})
+    rows.sort(key=lambda r: (r['when'], r['s'].order))
+    total = sum((r['s'].amount for r in rows if not r['posted']), Decimal('0'))
+    return render(request, 'tracker/scheduled.html', {
+        'rows': rows, 'base': base, 'month_str': base.strftime('%Y-%m'),
+        'month_label': base.strftime('%B %Y'), 'total': total,
+    })
+
+
+@login_required
+@require_POST
+def scheduled_post(request):
+    from .models import ScheduledTransaction
+    base = date.fromisoformat(request.POST.get('month') + '-01')
+    ids = request.POST.getlist('post')
+    n = 0
+    for s in ScheduledTransaction.objects.filter(id__in=ids, is_active=True):
+        if s.last_posted == base:
+            continue
+        _post_scheduled(s, _sched_date(base, s.day, s.month_offset))
+        s.last_posted = base
+        s.save(update_fields=['last_posted'])
+        n += 1
+    messages.success(request, f'Posted {n} scheduled transaction{"" if n == 1 else "s"} for {base:%B %Y}.')
+    return redirect(reverse('tracker:scheduled') + f'?month={base:%Y-%m}')
+
+
 @login_required
 def matches(request):
     """Confirm/deny exact-amount pairs the matcher wasn't confident enough to auto-merge."""
