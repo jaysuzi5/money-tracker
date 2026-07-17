@@ -159,7 +159,10 @@ def dashboard(request):
             t.split_list = list(t.splits.all())
             t.category_label = '— Split —' if t.split_list else (str(t.category) if t.category else '')
 
-        sort = request.GET.get('sort', 'cl')
+        # Chronological by default so the running-balance column is monotonic and the
+        # LAST row equals the account's current balance (opening + all txns). The 'cl'
+        # sort (uncleared to the bottom) breaks that, since running is date-ordered.
+        sort = request.GET.get('sort', 'date')
         direction = request.GET.get('dir', 'asc')
         if sort in SORT_KEYS:
             txns.sort(key=SORT_KEYS[sort], reverse=(direction == 'desc'))
@@ -188,10 +191,11 @@ def dashboard(request):
                 status=TxnStatus.UNCLEARED).aggregate(s=Sum('amount'))['s'] or Decimal('0')
             uncleared_flipped = -uncleared_sum
             dummy_sum = account.allocated_total
-            local_total = account.current_balance + uncleared_flipped + dummy_sum
+            current = account.computed_balance
+            local_total = current + uncleared_flipped + dummy_sum
             recon = {
                 'online': account.online_balance,
-                'current': account.current_balance,
+                'current': current,
                 'uncleared': uncleared_flipped,
                 'dummy': dummy_sum,
                 'local_total': local_total,
@@ -634,7 +638,7 @@ def reconcile(request, account_id):
 
     txns = account.transactions.exclude(status=TxnStatus.RECONCILED).select_related('category')
     cleared_balance = account.cleared_balance
-    synced = account.current_balance
+    synced = account.computed_balance
     return render(request, 'tracker/reconcile.html', {
         'account': account,
         'txns': txns,

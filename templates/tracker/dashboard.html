@@ -24,7 +24,7 @@
             <a class="qk-acct {% if account.id == a.id %}active{% endif %}"
                href="?account={{ a.id }}" title="{{ a.name }}">
               <span class="qk-acct-name">{% if a.has_new %}<span class="qk-new-dot"></span> {% endif %}{{ a.name }}</span>
-              <span class="qk-acct-bal num {% if a.current_balance < 0 %}qk-bal-neg{% else %}qk-bal-pos{% endif %}">${{ a.current_balance|floatformat:0|intcomma }}</span>
+              <span class="qk-acct-bal num {% if a.computed_balance < 0 %}qk-bal-neg{% else %}qk-bal-pos{% endif %}">${{ a.computed_balance|floatformat:0|intcomma }}</span>
             </a>
             {% for b in a.buckets.all %}{% if b.is_active %}
               <a class="qk-bucket {% if bucket.id == b.id %}active{% endif %}" href="?bucket={{ b.id }}" title="{{ b.name }} (set aside)">
@@ -174,7 +174,7 @@
         </div>
         <div class="text-end">
           <div class="inst">Balance</div>
-          <div class="fs-4 fw-bold num {% if account.current_balance < 0 %}qk-bal-neg{% endif %}">${{ account.current_balance|floatformat:2|intcomma }}</div>
+          <div class="fs-4 fw-bold num {% if account.computed_balance < 0 %}qk-bal-neg{% endif %}">${{ account.computed_balance|floatformat:2|intcomma }}</div>
           {% if account.is_reconcilable %}<a class="btn btn-sm btn-outline-primary mt-1" href="{% url 'tracker:reconcile' account.id %}"><i class="bi bi-check2-square"></i> Reconcile</a>{% endif %}
           <a class="btn btn-sm btn-outline-secondary mt-1" href="{% url 'tracker:export_qif' account.id %}"><i class="bi bi-download"></i> Export QIF</a>
           <a class="btn btn-sm btn-outline-secondary mt-1" href="{% url 'tracker:account_edit' account.id %}" title="Edit account"><i class="bi bi-gear"></i></a>

@@ -124,6 +124,17 @@ class Account(models.Model):
         return f'{self.institution.name} — {self.name}'
 
     @property
+    def computed_balance(self):
+        """The single authoritative balance shown everywhere (left menu, header, "CURRENT").
+        For a ledger account this is ALWAYS the live transaction balance
+        (opening_balance + sum of every transaction, cleared or not) — never a separately
+        stored number that can drift. Value/manual accounts keep their stored current_balance."""
+        if is_ledger_account(self) and not self.manual_balance:
+            return (self.opening_balance or Decimal('0')) + \
+                (self.transactions.aggregate(s=Sum('amount'))['s'] or Decimal('0'))
+        return self.current_balance
+
+    @property
     def cleared_balance(self):
         agg = self.transactions.filter(
             status__in=[TxnStatus.CLEARED, TxnStatus.RECONCILED]
