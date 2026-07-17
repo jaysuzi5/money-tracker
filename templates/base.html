@@ -113,6 +113,39 @@
     });
   };
   document.addEventListener('DOMContentLoaded', () => window.initTS());
+
+  // Calculator inputs: type "12.99+4.50*1.06" in any .num field, evaluated on blur/Enter/submit.
+  window.evalCalc = function (str) {
+    const s = (str || '').replace(/,/g, '').trim();
+    if (!s || !/^[+\-]?[\d+\-*/().\s]+$/.test(s)) return NaN;
+    try {
+      const v = Function('"use strict"; return (' + s + ')')();
+      return (typeof v === 'number' && isFinite(v)) ? v : NaN;
+    } catch (e) { return NaN; }
+  };
+  window.commitCalc = function (input) {
+    const raw = (input.value || '').trim();
+    if (!raw || !/[\d.)]\s*[+\-*/]/.test(raw)) return;  // no binary operator -> leave as-is (preserves plain +/- entry)
+    const v = window.evalCalc(raw);
+    if (isNaN(v)) return;
+    input.value = (raw[0] === '+' ? '+' : '') + v.toFixed(2);
+  };
+  document.addEventListener('focusout', e => {
+    if (e.target.matches && e.target.matches('input.num')) {
+      window.commitCalc(e.target);
+      e.target.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('input.num')) {
+      e.preventDefault();
+      window.commitCalc(e.target);
+      e.target.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+  document.addEventListener('submit', e => {
+    e.target.querySelectorAll('input.num').forEach(window.commitCalc);
+  }, true);
   (function () {
     const tg = document.getElementById('theme-toggle');
     if (!tg) return;

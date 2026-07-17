@@ -75,9 +75,13 @@
 {% block scripts %}
 <script>
   const total = parseFloat(document.getElementById('txn-total').dataset.total);
+  function amtValue(i) {
+    const v = window.evalCalc(i.value);
+    return isNaN(v) ? (parseFloat((i.value || '').replace(/,/g, '')) || 0) : v;
+  }
   function recalc() {
     let sum = 0;
-    document.querySelectorAll('.split-amt').forEach(i => { sum += parseFloat(i.value) || 0; });
+    document.querySelectorAll('.split-amt').forEach(i => { sum += amtValue(i); });
     const rem = (total - sum);
     const el = document.getElementById('remaining');
     el.textContent = rem.toFixed(2);
