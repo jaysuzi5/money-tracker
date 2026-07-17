@@ -54,6 +54,15 @@ def payee_sim(imported: Transaction, candidate: Transaction) -> float:
     return _fuzzy(imported.payee, candidate.payee)
 
 
+def match_score(imported: Transaction, candidate: Transaction) -> float:
+    """Confidence a candidate is the bank txn's local twin. A transfer leg (e.g. a
+    payment to Discover) is intentional and amount+date already pin it down, so the
+    payee text ('Transfer to Discover' vs the bank's name) is ignored -> auto-match."""
+    if candidate.transfer_id:
+        return 1.0
+    return payee_sim(imported, candidate)
+
+
 def find_candidates(imported: Transaction):
     """Hand-entered txns in the same account, exact amount, within the date window,
     not already matched (external_id empty), and NOT reconciled. Reconciled transactions
@@ -76,6 +85,12 @@ def merge(manual: Transaction, imported: Transaction):
     imported.delete()                      # free the unique (account, external_id) slot first
     manual.external_id = ext_id
     manual.status = TxnStatus.CLEARED
+    if manual.transfer_id:
+        # Transfer leg: just check it off and record the bank id. Its payee/memo/category
+        # describe the transfer and must stay intact — do NOT fold in the bank text.
+        manual.is_new = True
+        manual.save()
+        return
     if not manual.payee:
         manual.payee = imp_payee
     if imp_memo and imp_memo not in manual.memo:
@@ -98,7 +113,7 @@ def run_matcher(account=None) -> dict:
         candidates = find_candidates(imported)
         if not candidates:
             continue
-        scored = sorted(((payee_sim(imported, c), c) for c in candidates),
+        scored = sorted(((match_score(imported, c), c) for c in candidates),
                         key=lambda t: t[0], reverse=True)
         best_score, best = scored[0]
         if best_score >= AUTO_MATCH_SIM:
@@ -124,7 +139,7 @@ def pending_suggestions(account=None):
         candidates = find_candidates(imported)
         if not candidates:
             continue
-        scored = sorted(((payee_sim(imported, c), c) for c in candidates),
+        scored = sorted(((match_score(imported, c), c) for c in candidates),
                         key=lambda t: t[0], reverse=True)
         best_score, best = scored[0]
         if best_score < AUTO_MATCH_SIM:
