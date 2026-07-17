@@ -101,6 +101,14 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
                       'source': TxnSource.SIMPLEFIN, 'is_new': True})
         if created:
             added += 1
+            # Fidelity: inherit the category last used for this same payee
+            if nt.payee and 'fidelity' in (acct.institution.name or '').lower():
+                prev_cat = (Transaction.objects.filter(payee=nt.payee, category__isnull=False)
+                            .exclude(pk=obj.pk).order_by('-date', '-id')
+                            .values_list('category_id', flat=True).first())
+                if prev_cat:
+                    obj.category_id = prev_cat
+                    obj.save(update_fields=['category'])
         # existing rows keep their status (you control clearing of hand-entered in-flight items)
 
     matched = 0
