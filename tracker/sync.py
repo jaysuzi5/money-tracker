@@ -101,8 +101,10 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
                       'source': TxnSource.SIMPLEFIN, 'is_new': True})
         if created:
             added += 1
-            # Fidelity: inherit the category last used for this same payee
-            if nt.payee and 'fidelity' in (acct.institution.name or '').lower():
+            # Inherit the category last used for this same payee, so an imported txn is
+            # pre-categorized even if it never matches a manual entry. If it does match,
+            # merge() keeps the manual entry's category, so this only shows on unmatched rows.
+            if nt.payee:
                 prev_cat = (Transaction.objects.filter(payee=nt.payee, category__isnull=False)
                             .exclude(pk=obj.pk).order_by('-date', '-id')
                             .values_list('category_id', flat=True).first())
