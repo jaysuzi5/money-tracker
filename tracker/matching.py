@@ -18,7 +18,7 @@ import re
 from datetime import timedelta
 from difflib import SequenceMatcher
 
-from .models import PayeeAlias, Transaction, TxnSource, TxnStatus
+from .models import AccountType, PayeeAlias, Transaction, TxnSource, TxnStatus
 
 logger = logging.getLogger('tracker')
 
@@ -66,17 +66,25 @@ def match_score(imported: Transaction, candidate: Transaction) -> float:
 def find_candidates(imported: Transaction):
     """Hand-entered txns in the same account, exact amount, within the date window,
     not already matched (external_id empty), and NOT reconciled. Reconciled transactions
-    are locked — never matched, mutated, or deleted."""
+    are locked — never matched, mutated, or deleted.
+
+    Credit-card exception: a card payment is the manual transfer leg (positive, reduces
+    the balance owed), but the bank posts the same payment with the OPPOSITE sign. So on a
+    credit-card account we also treat a transfer leg of amount == -imported.amount as a
+    candidate — the import clears that leg instead of being added as a canceling negative."""
     lo = imported.date - timedelta(days=DATE_WINDOW_DAYS)
     hi = imported.date + timedelta(days=DATE_WINDOW_DAYS)
-    return list(
-        Transaction.objects.filter(
-            account=imported.account,
-            amount=imported.amount,
-            date__gte=lo, date__lte=hi,
-            external_id='', exclude_match=False,
-        ).exclude(source=TxnSource.SIMPLEFIN).exclude(status=TxnStatus.RECONCILED)
-    )
+    base = Transaction.objects.filter(
+        account=imported.account,
+        date__gte=lo, date__lte=hi,
+        external_id='', exclude_match=False,
+    ).exclude(source=TxnSource.SIMPLEFIN).exclude(status=TxnStatus.RECONCILED)
+    cands = list(base.filter(amount=imported.amount))
+    if imported.account.type == AccountType.CREDIT_CARD:
+        seen = {c.id for c in cands}
+        cands += [c for c in base.filter(amount=-imported.amount, transfer_id__isnull=False)
+                  if c.id not in seen]
+    return cands
 
 
 def merge(manual: Transaction, imported: Transaction):
