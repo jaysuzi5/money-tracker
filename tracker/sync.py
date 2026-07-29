@@ -36,6 +36,13 @@ _ORG_ALIASES = {
     'Capital One': 'Discover Credit Card',
 }
 
+# Deprecated SimpleFIN feeds to skip entirely (e.g. the old Discover connection after the
+# card was reissued under Capital One). Its transactions already live on the Discover
+# account; re-importing them just creates a duplicate ghost account.
+_IGNORE_EXTERNAL_IDS = {
+    'ACT-05811165-00ec-4c4c-95ac-7dadd83c6df9',  # old Discover feed -> use Capital One "Discover More"
+}
+
 
 def _clean_name(name: str) -> str:
     """Strip a trailing account number like ' (0004)' from a SimpleFIN account name."""
@@ -57,6 +64,8 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
     by_ext = {}
 
     for na in result.accounts:
+        if na.external_id in _IGNORE_EXTERNAL_IDS:
+            continue
         org = _ORG_ALIASES.get(na.org, na.org)
         inst, _ = Institution.objects.get_or_create(
             name=org, defaults={'connector_type': connector_type})
@@ -92,10 +101,12 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
             continue
         if nt.amount == Decimal('0'):
             continue  # skip $0 placeholders (e.g. PSECU scheduled checks)
-        # skip provider double-sends: same content already imported under a different id
+        # Skip if this transaction already exists on the account by date + amount + payee
+        # (any source), under a different id. Covers provider double-sends and a reissued
+        # card's feed re-reporting transactions already recorded here.
         if Transaction.objects.filter(
                 account=acct, date=nt.date, amount=nt.amount, payee=nt.payee,
-                source=TxnSource.SIMPLEFIN).exclude(external_id=nt.external_id).exists():
+                ).exclude(external_id=nt.external_id).exists():
             continue
         # Never import pending items. Posted items come in cleared; the online_balance
         # already reflects them, so no starting-balance adjustment is ever needed.
