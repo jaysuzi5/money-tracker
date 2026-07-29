@@ -29,6 +29,13 @@ _TYPE_HINTS = [
 _INVESTMENT_TYPES = {AccountType.BROKERAGE, AccountType.K401, AccountType.IRA,
                      AccountType.HSA, AccountType.PENSION}
 
+# The Discover card was reissued under Capital One and now syncs with org "Capital One"
+# (account name "Discover More"). Map it back onto the existing "Discover Credit Card"
+# institution so its transactions keep loading into the same Discover account.
+_ORG_ALIASES = {
+    'Capital One': 'Discover Credit Card',
+}
+
 
 def _clean_name(name: str) -> str:
     """Strip a trailing account number like ' (0004)' from a SimpleFIN account name."""
@@ -50,8 +57,9 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
     by_ext = {}
 
     for na in result.accounts:
+        org = _ORG_ALIASES.get(na.org, na.org)
         inst, _ = Institution.objects.get_or_create(
-            name=na.org, defaults={'connector_type': connector_type})
+            name=org, defaults={'connector_type': connector_type})
         clean = _clean_name(na.name)
         acct, created = Account.objects.get_or_create(
             institution=inst, external_id=na.external_id,
