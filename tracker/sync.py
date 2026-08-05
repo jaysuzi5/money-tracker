@@ -101,12 +101,14 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
             continue
         if nt.amount == Decimal('0'):
             continue  # skip $0 placeholders (e.g. PSECU scheduled checks)
-        # Skip if this transaction already exists on the account by date + amount + payee
-        # (any source), under a different id. Covers provider double-sends and a reissued
-        # card's feed re-reporting transactions already recorded here.
+        # Skip if this transaction was already imported on the account by date + amount +
+        # payee under a different bank id. Covers provider double-sends and a reissued
+        # card's feed re-reporting transactions already recorded here. Only rows that
+        # already carry a bank id count — a hand-entered twin (external_id '') must still
+        # let the import through so run_matcher can merge and clear it.
         if Transaction.objects.filter(
                 account=acct, date=nt.date, amount=nt.amount, payee=nt.payee,
-                ).exclude(external_id=nt.external_id).exists():
+                external_id__gt='').exclude(external_id=nt.external_id).exists():
             continue
         # Never import pending items. Posted items come in cleared; the online_balance
         # already reflects them, so no starting-balance adjustment is ever needed.
