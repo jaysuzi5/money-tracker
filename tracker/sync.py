@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import timedelta
 from decimal import Decimal
 
 from django.utils import timezone
@@ -7,7 +8,8 @@ from django.utils import timezone
 from .connectors.base import SyncResult
 from .matching import run_matcher
 from .models import (Account, AccountType, BalanceSnapshot, Holding, Institution,
-                     SyncRun, Transaction, TxnSource, TxnStatus, recompute_balance)
+                     SyncRun, Transaction, TxnSource, TxnStatus, is_ledger_account,
+                     recompute_balance)
 
 logger = logging.getLogger('tracker')
 
@@ -44,6 +46,26 @@ _IGNORE_EXTERNAL_IDS = {
 }
 
 
+# A value account's balance is the bank's number plus anything still in flight, so an
+# uncleared row keeps adding on top of it. Accounts with no transaction feed (Wealthfront's
+# investment account only reports holdings) never get an import for the matcher to merge, so
+# a hand-entered transfer leg would sit uncleared forever and double-count. Once the bank's
+# balance is dated this many days past the transaction, the money has landed and is in that
+# number already.
+_SETTLE_DAYS = 3
+
+
+def _clear_settled(acct, balance_date) -> int:
+    """Clear in-flight rows on a value account that the bank balance already reflects."""
+    # is_manual/manual_balance accounts carry a hand-set number that the feed never touches,
+    # so nothing there proves the money landed — leave their in-flight rows alone.
+    if is_ledger_account(acct) or acct.manual_balance or acct.is_manual:
+        return 0
+    return Transaction.objects.filter(
+        account=acct, status=TxnStatus.UNCLEARED,
+        date__lte=balance_date - timedelta(days=_SETTLE_DAYS)).update(status=TxnStatus.CLEARED)
+
+
 def _clean_name(name: str) -> str:
     """Strip a trailing account number like ' (0004)' from a SimpleFIN account name."""
     return re.sub(r'\s*\(\d+\)\s*$', '', name or '').strip()
@@ -62,6 +84,7 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
                   started_at=timezone.now())
     added = 0
     by_ext = {}
+    bal_dates = {}
 
     for na in result.accounts:
         if na.external_id in _IGNORE_EXTERNAL_IDS:
@@ -81,6 +104,7 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
         acct.balance_synced_at = timezone.now()
         acct.save()
         by_ext[na.external_id] = acct
+        bal_dates[na.external_id] = na.balance_date
         BalanceSnapshot.objects.update_or_create(
             account=acct, date=na.balance_date, defaults={'balance': na.balance})
 
@@ -135,9 +159,11 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
         # existing rows keep their status (you control clearing of hand-entered in-flight items)
 
     matched = 0
-    for acct in by_ext.values():
+    settled = 0
+    for ext_id, acct in by_ext.items():
         if acct.is_reconcilable:
             matched += run_matcher(account=acct)['matched']
+        settled += _clear_settled(acct, bal_dates[ext_id])
         recompute_balance(acct)
 
     run.accounts_synced = len(by_ext)
@@ -147,5 +173,6 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
     run.ok = not result.errors
     run.error = '\n'.join(result.errors)
     run.save()
-    logger.info('sync applied', extra={'ctx_accounts': len(by_ext), 'ctx_added': added})
+    logger.info('sync applied', extra={'ctx_accounts': len(by_ext), 'ctx_added': added,
+                                       'ctx_settled': settled})
     return run
