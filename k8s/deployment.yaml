@@ -50,9 +50,9 @@ spec:
             - name: DATABASE_URL
               value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgresql-rw.postgresql.svc.cluster.local:5432/money_tracker"
             - name: ALLOWED_HOSTS
-              value: "money-tracker.home.arpa"
+              value: "money-tracker.home.arpa,money-tracker.jaycurtis.org"
             - name: CSRF_TRUSTED_ORIGINS
-              value: "https://money-tracker.home.arpa,http://money-tracker.home.arpa"
+              value: "https://money-tracker.home.arpa,http://money-tracker.home.arpa,https://money-tracker.jaycurtis.org"
             - name: OTEL_SERVICE_NAME
               value: "money-tracker"
             - name: OTLP_ENDPOINT
@@ -92,6 +92,18 @@ spec:
       secretName: money-tracker-tls
   rules:
     - host: money-tracker.home.arpa
+      http:
+        paths:
+          - backend:
+              service:
+                name: money-tracker
+                port:
+                  number: 8000
+            path: /
+            pathType: Prefix
+    # Public host, reached via Cloudflare Tunnel (edge TLS terminates at Cloudflare;
+    # cloudflared forwards plain HTTP to ingress-nginx — no local TLS cert needed here).
+    - host: money-tracker.jaycurtis.org
       http:
         paths:
           - backend:
