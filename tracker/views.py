@@ -256,14 +256,20 @@ def _parse_amount(raw):
     return Decimal((raw or '').replace(',', '').strip())
 
 
-def _signed_amount(raw):
-    """Default to negative (expense). Bare '50' -> -50; '+50' -> 50; '-50' -> -50."""
+def _signed_amount(raw, current=None):
+    """'+50' -> 50; '-50' -> -50. Bare '50': matches sign of `current` if given
+    (editing keeps its existing sign), else defaults to negative (new expense)."""
     raw = (raw or '').replace(',', '').replace('$', '').strip()
     if raw.startswith('+'):
         return Decimal(raw[1:])
     if raw.startswith('-'):
         return Decimal(raw)
-    return -Decimal(raw)
+    magnitude = Decimal(raw)
+    if current is not None and current < 0:
+        return -magnitude
+    if current is not None:
+        return magnitude
+    return -magnitude
 
 
 def _recompute_available(account):
@@ -726,7 +732,7 @@ def txn_update(request, txn_id):
         messages.error(request, 'Split transaction — use Split to edit its lines.')
         return _account_redirect(txn.account_id)
     try:
-        amount = _signed_amount(request.POST.get('amount'))
+        amount = _signed_amount(request.POST.get('amount'), current=txn.amount)
     except InvalidOperation:
         messages.error(request, 'Invalid amount.')
         return _account_redirect(txn.account_id)
