@@ -45,6 +45,16 @@ _IGNORE_EXTERNAL_IDS = {
     'ACT-05811165-00ec-4c4c-95ac-7dadd83c6df9',  # old Discover feed -> use Capital One "Discover More"
 }
 
+# Wealthfront renamed both joint accounts and reissued the ids behind them: the investment
+# account now arrives as "Joint (UENK)" and the cash account as "Joint 3.55% APY" — a name
+# that changes every time the interest rate does. Map either name back to the account it
+# belongs to, so a rename (and any new id behind it) re-uses that account instead of
+# spawning a duplicate.
+_NAME_ALIASES = [
+    (re.compile(r'^joint\s*\(uenk\)$', re.I), 'Joint Investment Account'),
+    (re.compile(r'^joint\s+\d+(?:\.\d+)?\s*%\s*apy$', re.I), 'Joint Cash Account'),
+]
+
 
 # A value account's balance is the bank's number plus anything still in flight, so an
 # uncleared row keeps adding on top of it. Accounts with no transaction feed (Wealthfront's
@@ -71,6 +81,14 @@ def _clean_name(name: str) -> str:
     return re.sub(r'\s*\(\d+\)\s*$', '', name or '').strip()
 
 
+def _canonical_name(name: str) -> str:
+    """The local account name a renamed feed account belongs to (unchanged if not aliased)."""
+    for pattern, canonical in _NAME_ALIASES:
+        if pattern.match(name):
+            return canonical
+    return name
+
+
 def _guess_type(name: str) -> str:
     low = name.lower()
     for needle, atype in _TYPE_HINTS:
@@ -93,10 +111,18 @@ def apply_result(result: SyncResult, *, connector_type: str, institution=None) -
         inst, _ = Institution.objects.get_or_create(
             name=org, defaults={'connector_type': connector_type})
         clean = _clean_name(na.name)
-        acct, created = Account.objects.get_or_create(
-            institution=inst, external_id=na.external_id,
-            defaults={'name': clean, 'type': _guess_type(clean)})
+        canonical = _canonical_name(clean)
+        acct = Account.objects.filter(institution=inst, external_id=na.external_id).first()
+        if acct is None and canonical != clean:
+            # An aliased (renamed) account showing up under a reissued id: take over the
+            # account it belongs to and repoint it at the new feed.
+            acct = Account.objects.filter(institution=inst, name=canonical).first()
+            if acct:
+                acct.external_id = na.external_id
+        created = acct is None
         if created:
+            acct = Account(institution=inst, external_id=na.external_id,
+                           name=canonical, type=_guess_type(canonical))
             acct.is_investment = acct.type in _INVESTMENT_TYPES
             acct.is_reconcilable = acct.type in {AccountType.CHECKING, AccountType.CREDIT_CARD}
         if not acct.is_manual:  # manual accounts keep their hand-entered balance
